@@ -25,8 +25,10 @@ from Quartz import (
     kCGHIDEventTap,
     CGPointMake,
     CGEventSetIntegerValueField,
-    kCGMouseEventPressure
+    kCGMouseEventPressure,
+    kCGEventMouseMoved
 )
+
 # Import additional required Quartz modules
 import Quartz
 
@@ -636,8 +638,8 @@ class WordHuntSolver:
             board_height = self.board_bounds['bottom'] - self.board_bounds['top']
             
             # Move the board down by adjusting the starting position
-            board_top = self.window_y + int(self.window_height * 0.145)  # lower number = lower y offset
-            board_space = self.window_height * 0.35  # Decreased from 0.4 to 0.35 for more compact board
+            board_top = self.window_y + int(self.window_height * 0.25)  # lower number = lower y offset
+            board_space = self.window_height * 0.25  # Decreased from 0.4 to 0.35 for more compact board
             
             for grid_pos in path:
                 i, j = grid_pos
@@ -647,8 +649,8 @@ class WordHuntSolver:
                 norm_y = (i + 0.5) / self.GRID_SIZE
                 
                 # Calculate actual screen coordinates
-                board_width = self.window_width * 0.8  # Board takes up 80% of window width
-                board_x_offset = self.window_width * 0.1  # 10% margin on each side
+                board_width = self.window_width * 0.6 # Board takes up 80% of window width
+                board_x_offset = self.window_width * 0.2  # 10% margin on each side
                 
                 # Calculate X position
                 screen_x = self.window_x + board_x_offset + (norm_x * board_width)
@@ -734,12 +736,68 @@ class WordHuntSolver:
         if hasattr(self, 'listener'):
             self.listener.stop()
         cv2.destroyAllWindows()
+    
+    def test_bounds(self):
+        """Move mouse around the border of the game area to visualize swipe boundaries."""
+        try:
+            screen_height = pyautogui.size()[1]
+            
+            # Calculate board area
+            board_top = self.window_y + int(self.window_height * 0.25) # top margin
+            board_space = self.window_height * 0.25 # vertical spacing between cells
+            board_width = self.window_width * 0.6 # the width (horizontal spacing) each grid cell
+            board_x_offset = self.window_width * 0.2 # where the left edge of the grid starts
+            
+            # Calculate corner points (clockwise from top-left)
+            corners = [
+                # Top-left (0,0)
+                (
+                    self.window_x + board_x_offset,
+                    screen_height - (board_top)
+                ),
+                # Top-right (0,3)
+                (
+                    self.window_x + board_x_offset + board_width,
+                    screen_height - (board_top)
+                ),
+                # Bottom-right (3,3)
+                (
+                    self.window_x + board_x_offset + board_width,
+                    screen_height - (board_top + board_space)
+                ),
+                # Bottom-left (3,0)
+                (
+                    self.window_x + board_x_offset,
+                    screen_height - (board_top + board_space)
+                )
+            ]
+            
+            print("\nMoving mouse to show game boundaries...")
+            print("Press Ctrl+C to stop")
+            
+            # Move to each corner and pause
+            while True:  # Loop until interrupted
+                for i, (x, y) in enumerate(corners):
+                    source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+                    point = CGPointMake(x, y)
+                    move_event = CGEventCreateMouseEvent(source, kCGEventMouseMoved, point, kCGMouseButtonLeft)
+                    CGEventPost(kCGHIDEventTap, move_event)
+                    print(f"Corner {i+1}: ({x:.1f}, {y:.1f})")
+                    time.sleep(1)  # Pause at each corner
+                    
+        except KeyboardInterrupt:
+            print("\nBoundary test stopped")
+        except Exception as e:
+            print(f"Error during boundary test: {e}")
 
 def main():
     print("\nWord Hunt Solver")
     print("1. Open the Word Hunt game")
     print("2. Press Enter to position the window")
-    print("\nPress Q at any time to stop the solver")
+    print("3. Options:")
+    print("   T - Test boundaries")
+    print("   Enter - Start solving")
+    print("   Q - Quit")
     input()
     
     try:
@@ -750,15 +808,20 @@ def main():
             print("Failed to position window!")
             return
         
-        time.sleep(1)  # Wait for window movement
+        time.sleep(1)
         
-        # Create and run solver
         solver = WordHuntSolver()
         
-        print("\nPress Enter when ready to solve...")
-        input()
-        
-        solver.solve()
+        while True:
+            choice = input("\nEnter choice (T/Enter/Q): ").lower()
+            if choice == 't':
+                solver.test_bounds()
+            elif choice == 'q':
+                break
+            elif choice == '':
+                solver.solve()
+            else:
+                print("Invalid choice")
         
     except KeyboardInterrupt:
         print("\nSolver stopped by user")
