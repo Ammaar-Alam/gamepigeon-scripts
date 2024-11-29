@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Darts Landing Feedback</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #2b1810;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        #game-container {
+            width: 400px;
+            height: 800px;
+            position: relative;
+            background-color: #3b2318;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        #dartboard {
+            width: 350px;
+            height: 350px;
+            position: absolute;
+            top: 50px;
+            left: 25px;
+        }
+        
+        .control-panel {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            width: 360px;
+        }
+        
+        #stats {
+            font-family: monospace;
+        }
+        
+        .button {
+            background: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        
+        .button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        #landing-marker {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+        }
+        
+        #target-marker {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: green;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        .coordinate {
+            font-family: monospace;
+            margin: 5px 0;
+        }
+        
+        select {
+            padding: 8px;
+            font-size: 16px;
+            margin: 5px;
+            border-radius: 5px;
+        }
+        
+        .throw-controls {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        #throw-history {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+        }
+        
+        .history-entry {
+            font-family: monospace;
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .keyboard-shortcut {
+            color: #aaa;
+            font-size: 12px;
+            margin-left: 5px;
+        }
+
+        #mode-controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .mode-button {
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .mode-button.active {
+            opacity: 1;
+        }
+
+        #training-button {
+            background: #2196F3;
+            color: white;
+        }
+
+        #competing-button {
+            background: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="mode-controls">
+        <button id="training-button" class="mode-button">Training</button>
+        <button id="competing-button" class="mode-button">Competing</button>
+    </div>
+
+    <div id="game-container">
+        <canvas id="dartboard"></canvas>
+        <div id="landing-marker"></div>
+        <div id="target-marker"></div>
+    </div>
+    
+    <div class="control-panel">
+        <h3>Target Selection</h3>
+        <div class="throw-controls">
+            <select id="target-number">
+                <option value="20">20</option>
+                <option value="1">1</option>
+                <option value="18">18</option>
+                <option value="4">4</option>
+                <option value="13">13</option>
+                <option value="6">6</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="2">2</option>
+                <option value="17">17</option>
+                <option value="3">3</option>
+                <option value="19">19</option>
+                <option value="7">7</option>
+                <option value="16">16</option>
+                <option value="8">8</option>
+                <option value="11">11</option>
+                <option value="14">14</option>
+                <option value="9">9</option>
+                <option value="12">12</option>
+                <option value="5">5</option>
+            </select>
+            <select id="target-multiplier">
+                <option value="single">Single</option>
+                <option value="double">Double</option>
+                <option value="triple" selected>Triple</option>
+            </select>
+        </div>
+        
+        <div class="throw-controls">
+            <button id="throw" class="button">Throw Dart (Space)</button>
+            <button id="confirm" class="button" disabled>Confirm Landing (Enter)</button>
+            <button id="reset" class="button">Reset (R)</button>
+        </div>
+        
+        <div id="stats">
+            <h3>Last Throw</h3>
+            <div class="coordinate">Target: <span id="target-coord">-</span></div>
+            <div class="coordinate">Landing: <span id="landing-coord">-</span></div>
+            <div class="coordinate">Difference: <span id="diff-coord">-</span></div>
+            <div class="coordinate">Score: <span id="score">-</span></div>
+        </div>
+        
+        <div id="throw-history">
+            <h3>Throw History</h3>
+        </div>
+    </div>
+
+    <script>
+        class DartboardUI {
+            constructor() {
+                this.canvas = document.getElementById('dartboard');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Set canvas size
+                this.canvas.width = 350;
+                this.canvas.height = 350;
+                
+                // Dartboard configuration
+                this.center = { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+                this.radius = 150;
+                
+                // Get mode from URL or default to training
+                const urlParams = new URLSearchParams(window.location.search);
+                this.mode = urlParams.get('mode') || 'training';
+                
+                // Setup mode buttons
+                this.setupModeControls();
+                
+                // Measured target coordinates
+                this.targetCoords = {
+                    // Previous coordinates unchanged
+                    '20_single': [175, 69],
+                    '20_double': [175, 41],
+                    '20_triple': [175, 100],
+                    '1_single': [205, 75],
+                    '1_double': [215, 45],
+                    '1_triple': [200, 105],
+                    '18_single': [237, 90],
+                    '18_double': [255, 65],
+                    '18_triple': [220, 114],
+                    '4_single': [260, 117],
+                    '4_double': [288, 95],
+                    '4_triple': [237, 129],
+                    '13_single': [277, 143],
+                    '13_double': [305, 133],
+                    '13_triple': [248, 152],
+                    '6_single': [271, 160],
+                    '6_double': [310, 175],
+                    '6_triple': [250, 175],
+                    '10_single': [275, 205],
+                    '10_double': [300, 215],
+                    '10_triple': [248, 198],
+                    '15_single': [260, 235],
+                    '15_double': [287, 254],
+                    '15_triple': [237, 221],
+                    '2_single': [240, 260],
+                    '2_double': [255, 285],
+                    '2_triple': [220, 235],
+                    '17_single': [205, 275],
+                    '17_double': [218, 305],
+                    '17_triple': [200, 250],
+                    '3_single': [175, 285],
+                    '3_double': [175, 315],
+                    '3_triple': [175, 250],
+                    '5_single': [145, 75],
+                    '5_double': [135, 45],
+                    '5_triple': [154, 103],
+                    '12_single': [112, 87],
+                    '12_double': [95, 65],
+                    '12_triple': [130, 115],
+                    '9_single': [90, 110],
+                    '9_double': [65, 95],
+                    '9_triple': [115, 130],
+                    '14_single': [75, 145],
+                    '14_double': [45, 135],
+                    '14_triple': [100, 150],
+                    '11_single': [75, 175],
+                    '11_double': [40, 175],
+                    '11_triple': [100, 175],
+                    '8_single': [75, 210],
+                    '8_double': [45, 220],
+                    '8_triple': [103, 200],
+                    '16_single': [90, 230],
+                    '16_double': [65, 255],
+                    '16_triple': [115, 220],
+                    '7_single': [115, 260],
+                    '7_double': [95, 285],
+                    '7_triple': [130, 235],
+                    '19_single': [145, 275],
+                    '19_double': [130, 305],
+                    '19_triple': [150, 250],
+                    'bullseye': [175, 175],
+                    'double_bullseye': [175, 175]
+                };
+                
+                // UI elements
+                this.landingMarker = document.getElementById('landing-marker');
+                this.targetMarker = document.getElementById('target-marker');
+                this.throwButton = document.getElementById('throw');
+                this.confirmButton = document.getElementById('confirm');
+                this.resetButton = document.getElementById('reset');
+                this.targetNumber = document.getElementById('target-number');
+                this.targetMultiplier = document.getElementById('target-multiplier');
+                
+                // Current state
+                this.landingPos = null;
+                this.ws = null;
+                this.connectToServer();
+                
+                this.setupEventListeners();
+                this.draw();
+                this.updateTarget();
+            }
+
+            setupModeControls() {
+                const trainingBtn = document.getElementById('training-button');
+                const competingBtn = document.getElementById('competing-button');
+
+                // Set initial active state
+                if (this.mode === 'training') {
+                    trainingBtn.classList.add('active');
+                } else {
+                    competingBtn.classList.add('active');
+                }
+
+                // Add click handlers
+                trainingBtn.addEventListener('click', () => this.switchMode('training'));
+                competingBtn.addEventListener('click', () => this.switchMode('competing'));
+            }
+
+            switchMode(newMode) {
+                if (this.mode === newMode) return;
+
+                // Update mode
+                this.mode = newMode;
+
+                // Update button states
+                document.getElementById('training-button').classList.toggle('active');
+                document.getElementById('competing-button').classList.toggle('active');
+
+                // Update URL without reloading page
+                const url = new URL(window.location);
+                url.searchParams.set('mode', newMode);
+                window.history.pushState({}, '', url);
+
+                // Reconnect WebSocket with new mode
+                if (this.ws) {
+                    this.ws.close();
+                }
+                this.connectToServer();
+            }
+            
+            // Previous methods unchanged
+            draw() {
+                const ctx = this.ctx;
+                const center = this.center;
+                const radius = this.radius;
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw outer black border
+                ctx.beginPath();
+                ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'black';
+                ctx.fill();
+                
+                // Draw sections
+                const sections = 20;
+                const sectionAngle = (Math.PI * 2) / sections;
+                const rotationOffset = 9 * Math.PI / 180;
+                
+                for (let i = 0; i < sections; i++) {
+                    const startAngle = i * sectionAngle - Math.PI / 2 + rotationOffset;
+                    const endAngle = startAngle + sectionAngle;
+                    
+                    // Draw outer singles section
+                    ctx.beginPath();
+                    ctx.moveTo(center.x, center.y);
+                    ctx.arc(center.x, center.y, radius * 0.85, startAngle, endAngle);
+                    ctx.closePath();
+                    ctx.fillStyle = i % 2 === 0 ? 'white' : 'black';
+                    ctx.fill();
+                    
+                    // Draw inner singles section
+                    ctx.beginPath();
+                    ctx.moveTo(center.x, center.y);
+                    ctx.arc(center.x, center.y, radius * 0.45, startAngle, endAngle);
+                    ctx.closePath();
+                    ctx.fillStyle = i % 2 === 0 ? 'white' : 'black';
+                    ctx.fill();
+                    
+                    // Draw triple ring
+                    ctx.beginPath();
+                    ctx.arc(center.x, center.y, radius * 0.55, startAngle, endAngle);
+                    ctx.arc(center.x, center.y, radius * 0.47, endAngle, startAngle, true);
+                    ctx.closePath();
+                    ctx.fillStyle = i % 2 === 0 ? '#4CAF50' : '#f44336';
+                    ctx.fill();
+                    
+                    // Draw double ring
+                    ctx.beginPath();
+                    ctx.arc(center.x, center.y, radius * 0.95, startAngle, endAngle);
+                    ctx.arc(center.x, center.y, radius * 0.87, endAngle, startAngle, true);
+                    ctx.closePath();
+                    ctx.fillStyle = i % 2 === 0 ? '#4CAF50' : '#f44336';
+                    ctx.fill();
+                }
+                
+                // Draw bullseye
+                ctx.beginPath();
+                ctx.arc(center.x, center.y, radius * 0.08, 0, Math.PI * 2);
+                ctx.fillStyle = '#f44336';
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(center.x, center.y, radius * 0.04, 0, Math.PI * 2);
+                ctx.fillStyle = '#4CAF50';
+                ctx.fill();
+            }
+            
+            calculateScore() {
+                if (!this.landingPos) return;
+                
+                const dx = this.landingPos.x - this.center.x;
+                const dy = this.landingPos.y - this.center.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Calculate angle from top (0°) going clockwise
+                let angle = Math.atan2(dx, -dy) * 180 / Math.PI;
+                if (angle < 0) angle += 360;
+                angle = (angle - 9) % 360;  // Adjust for rotation offset
+                if (angle < 0) angle += 360;
+                
+                // Numbers arranged clockwise from top
+                const numbers = [1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20];
+                const sectionIndex = Math.floor(angle / 18);
+                const number = numbers[sectionIndex % 20];
+                
+                // Determine multiplier based on distance from center
+                let multiplier = 1;
+                const relativeDistance = distance / this.radius;
+                
+                if (relativeDistance < 0.04) {
+                    document.getElementById('score').textContent = `25 x2 = 50`;
+                    return;
+                }
+                
+                if (relativeDistance < 0.08) {
+                    document.getElementById('score').textContent = `25 x1 = 25`;
+                    return;
+                }
+                
+                if (relativeDistance > 1.0) {
+                    document.getElementById('score').textContent = `0`;
+                    return;
+                }
+                
+                if (relativeDistance > 0.87 && relativeDistance < 0.95) {
+                    multiplier = 2;
+                } else if (relativeDistance > 0.47 && relativeDistance < 0.55) {
+                    multiplier = 3;
+                }
+                
+                const score = number * multiplier;
+                document.getElementById('score').textContent = `${number} x${multiplier} = ${score}`;
+                
+                // Calculate difference from target
+                const targetX = parseInt(document.getElementById('target-coord').textContent.match(/\((\d+)/)[1]);
+                const targetY = parseInt(document.getElementById('target-coord').textContent.match(/(\d+)\)/)[1]);
+                const diffX = Math.round(this.landingPos.x - targetX);
+                const diffY = Math.round(this.landingPos.y - targetY);
+                
+                document.getElementById('diff-coord').textContent = `(${diffX}, ${diffY})`;
+            }
+            
+            showTargetMarker(number, multiplier) {
+                const key = `${number}_${multiplier}`;
+                const coords = this.targetCoords[key];
+                
+                if (!coords) {
+                    console.error(`No coordinates found for ${key}`);
+                    return;
+                }
+                
+                const [x, y] = coords;
+                
+                this.targetMarker.style.display = 'block';
+                this.targetMarker.style.left = (x + this.canvas.offsetLeft) + 'px';
+                this.targetMarker.style.top = (y + this.canvas.offsetTop) + 'px';
+                
+                document.getElementById('target-coord').textContent = `(${x}, ${y})`;
+            }
+            
+            connectToServer() {
+                // Include mode in WebSocket URL
+                const wsUrl = `ws://localhost:8765?mode=${this.mode}`;
+                this.ws = new WebSocket(wsUrl);
+                
+                this.ws.onopen = () => {
+                    console.log(`Connected to AI server in ${this.mode} mode`);
+                    this.throwButton.disabled = false;
+                };
+                
+                this.ws.onclose = () => {
+                    console.log('Disconnected from AI server');
+                    this.throwButton.disabled = true;
+                    setTimeout(() => this.connectToServer(), 1000);
+                };
+            }
+            
+            setupEventListeners() {
+                this.canvas.addEventListener('click', (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    
+                    this.landingPos = { x, y };
+                    this.showLandingMarker(x, y);
+                    this.confirmButton.disabled = false;
+                });
+                
+                this.throwButton.addEventListener('click', () => this.executeDartThrow());
+                this.confirmButton.addEventListener('click', () => this.confirmLanding());
+                this.resetButton.addEventListener('click', () => this.reset());
+                this.targetNumber.addEventListener('change', () => this.updateTarget());
+                this.targetMultiplier.addEventListener('change', () => this.updateTarget());
+                
+                document.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space' && !this.throwButton.disabled) {
+                        e.preventDefault();
+                        this.executeDartThrow();
+                    } else if (e.code === 'Enter' && !this.confirmButton.disabled) {
+                        e.preventDefault();
+                        this.confirmLanding();
+                    } else if (e.code === 'KeyR') {
+                        e.preventDefault();
+                        this.reset();
+                    }
+                });
+            }
+            
+            executeDartThrow() {
+                this.throwButton.disabled = true;
+                this.ws.send(JSON.stringify({
+                    type: 'throw_request',
+                    data: {
+                        number: parseInt(this.targetNumber.value),
+                        multiplier: this.targetMultiplier.value
+                    }
+                }));
+            }
+            
+            confirmLanding() {
+                if (!this.landingPos) return;
+                
+                const targetCoord = document.getElementById('target-coord').textContent;
+                const landingCoord = document.getElementById('landing-coord').textContent;
+                const diffCoord = document.getElementById('diff-coord').textContent;
+                const score = document.getElementById('score').textContent;
+                
+                this.ws.send(JSON.stringify({
+                    type: 'landing_data',
+                    data: {
+                        target: targetCoord,
+                        landing: landingCoord,
+                        difference: diffCoord,
+                        score: score
+                    }
+                }));
+                
+                const historyEntry = document.createElement('div');
+                historyEntry.className = 'history-entry';
+                historyEntry.textContent = `${this.targetMultiplier.value} ${this.targetNumber.value} → ${score}`;
+                document.getElementById('throw-history').prepend(historyEntry);
+                
+                this.reset();
+                this.throwButton.disabled = false;
+            }
+            
+            reset() {
+                this.landingPos = null;
+                this.landingMarker.style.display = 'none';
+                this.confirmButton.disabled = true;
+                document.getElementById('landing-coord').textContent = '-';
+                document.getElementById('diff-coord').textContent = '-';
+                document.getElementById('score').textContent = '-';
+            }
+            
+            showLandingMarker(x, y) {
+                this.landingMarker.style.display = 'block';
+                this.landingMarker.style.left = (x + this.canvas.offsetLeft) + 'px';
+                this.landingMarker.style.top = (y + this.canvas.offsetTop) + 'px';
+                
+                document.getElementById('landing-coord').textContent = `(${Math.round(x)}, ${Math.round(y)})`;
+                
+                this.calculateScore();
+            }
+            
+            updateTarget() {
+                const number = parseInt(this.targetNumber.value);
+                const multiplier = this.targetMultiplier.value;
+                this.showTargetMarker(number, multiplier);
+            }
+        }
+
+        // Create dartboard UI instance
+        const dartboard = new DartboardUI();
+    </script>
+</body>
+</html>
