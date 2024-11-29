@@ -1,3 +1,6 @@
+# list of letters that need more training:
+# F (confused as E), Y (confused as V), X (confused as K)
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
