@@ -64,7 +64,7 @@ class WordHuntSolver:
         
         # Configure PyAutoGUI
         pyautogui.FAILSAFE = True
-    
+
     def detect_game_board(self, img: np.ndarray) -> Tuple[dict, np.ndarray]:
         """Detect the game board and calculate accurate board bounds."""
         debug_img = img.copy()
@@ -72,7 +72,7 @@ class WordHuntSolver:
         # Crop to the region where the game board is likely to be
         height, width = img.shape[:2]
         top_crop = int(height * 0.45)  # Adjust based on your game's layout
-        bottom_crop = int(height * 0.79)  # Adjust as needed
+        bottom_crop = int(height * 0.85)  # Adjust as needed
         
         cropped = img[top_crop:bottom_crop, :]
         cv2.imshow("Cropped Input", cropped)
@@ -115,20 +115,30 @@ class WordHuntSolver:
         # Adjust coordinates to account for cropping
         y += top_crop
         
-        # Calculate cell sizes based on the actual board size
-        cell_size_w = w / self.GRID_SIZE
-        cell_size_h = h / self.GRID_SIZE
+        # Adjust for margins
+        margin_left = 75   # Adjust this value to fix the left margin
+        margin_right = 75  # Adjust this value to fix the right margin
+        margin_top = 0     # Adjust if needed
+        margin_bottom = 85  # Adjust if needed
         
-        # Set board bounds to the bounding rectangle
-        board_top = y
-        board_left = x + 85
+        board_left = x + margin_left
+        board_right = x + w - margin_right
+        board_top = y + margin_top
+        board_bottom = y + h - margin_bottom
+        
+        board_width = board_right - board_left
+        board_height = board_bottom - board_top
+        
+        # Calculate cell sizes based on the actual board size
+        cell_size_w = board_width / self.GRID_SIZE
+        cell_size_h = board_height / self.GRID_SIZE
         
         # Store board bounds
         self.board_bounds = {
             'top': board_top,
-            'bottom': board_top + cell_size_h * self.GRID_SIZE,
+            'bottom': board_bottom,
             'left': board_left,
-            'right': cell_size_w * self.GRID_SIZE - board_left,
+            'right': board_right,
             'cell_size_w': cell_size_w,
             'cell_size_h': cell_size_h
         }
@@ -146,14 +156,13 @@ class WordHuntSolver:
         
         # Extract board image
         board_img = img[
-            int(board_top):int(board_top + cell_size_h * self.GRID_SIZE),
-            int(board_left):int(board_left + cell_size_w * self.GRID_SIZE)
+            int(board_top):int(board_bottom),
+            int(board_left):int(board_right)
         ]
         
         print(f"Board bounds: {self.board_bounds}")
         return self.board_bounds, board_img
 
-    
     def load_dictionary(self) -> Set[str]:
         """Load a dictionary of valid English words."""
         words = set()
@@ -165,7 +174,7 @@ class WordHuntSolver:
                     if len(word) >= 3:  # Word Hunt requires words of 3+ letters
                         words.add(word)
         return words
-    
+
     def capture_board(self) -> np.ndarray:
         """Capture the game board using mss."""
         # Capture the entire window first
@@ -187,7 +196,7 @@ class WordHuntSolver:
             print("Error: Board capture is empty!")
         
         return board_img
-    
+
     def preprocess_cell(self, cell_img: np.ndarray) -> np.ndarray:
         """Preprocess a cell image for better OCR."""
         # Convert to grayscale if needed
@@ -216,7 +225,7 @@ class WordHuntSolver:
         )
         
         return padded
-    
+
     def process_image(self, img: np.ndarray) -> List[List[str]]:
         """Process the captured image to extract letters."""
         if img is None or img.size == 0:
@@ -259,6 +268,8 @@ class WordHuntSolver:
                 if letter and len(letter) > 0 and letter[0].isalpha():
                     letters[i][j] = letter[0].lower()
                     print(f"Detected letter at {i},{j}: {letter[0]}")
+                else:
+                    print(f"No valid letter detected at {i},{j}")
                 
                 # Draw debug visualization
                 cv2.rectangle(
@@ -272,7 +283,7 @@ class WordHuntSolver:
                     cv2.putText(
                         debug_img,
                         letters[i][j].upper(),
-                        (cell_left + int(cell_size_w // 4), cell_top + int(cell_size_h // 2)),
+                        (cell_left + int(cell_size_w * 0.25), cell_top + int(cell_size_h * 0.75)),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         1,
                         (0, 0, 255),
@@ -291,8 +302,11 @@ class WordHuntSolver:
             return 0 <= x < self.GRID_SIZE and 0 <= y < self.GRID_SIZE
         
         def dfs(x: int, y: int, visited: set, current_word: str, words: set):
-            if current_word.lower() in self.dictionary:
+            if len(current_word) >= 3 and current_word.lower() in self.dictionary:
                 words.add(current_word)
+            
+            if len(current_word) > self.GRID_SIZE ** 2:
+                return  # Prevent excessively long words
             
             # Check all 8 directions
             directions = [(-1,-1), (-1,0), (-1,1), (0,-1), (0,1), (1,-1), (1,0), (1,1)]
@@ -313,27 +327,25 @@ class WordHuntSolver:
                     visited = {(i, j)}
                     dfs(i, j, visited, self.letters[i][j], found_words)
         
-        return sorted(list(found_words), key=len, reverse=True)
-    
+        return sorted(list(found_words), key=lambda x: (-len(x), x))
+
     def find_word_path(self, word: str) -> List[Tuple[int, int]]:
         """Find the sequence of grid positions that spell out the word."""
-        def dfs(x: int, y: int, visited: set, target: str, current: str, path: list) -> bool:
-            if current == target:
+        def dfs(x: int, y: int, visited: set, target: str, index: int, path: list) -> bool:
+            if index == len(target):
                 return True
             
-            if not target.startswith(current):
-                return False
-            
+            # Check all 8 directions
             directions = [(-1,-1), (-1,0), (-1,1), (0,-1), (0,1), (1,-1), (1,0), (1,1)]
             for dx, dy in directions:
                 new_x, new_y = x + dx, y + dy
                 if (0 <= new_x < self.GRID_SIZE and 
                     0 <= new_y < self.GRID_SIZE and 
-                    (new_x, new_y) not in visited):
+                    (new_x, new_y) not in visited and
+                    self.letters[new_x][new_y] == target[index]):
                     visited.add((new_x, new_y))
                     path.append((new_x, new_y))
-                    if dfs(new_x, new_y, visited, target, 
-                          current + self.letters[new_x][new_y], path):
+                    if dfs(new_x, new_y, visited, target, index + 1, path):
                         return True
                     path.pop()
                     visited.remove((new_x, new_y))
@@ -345,10 +357,10 @@ class WordHuntSolver:
                 if self.letters[i][j] == word[0]:
                     path = [(i, j)]
                     visited = {(i, j)}
-                    if dfs(i, j, visited, word, word[0], path):
+                    if dfs(i, j, visited, word, 1, path):
                         return path
         return []
-    
+
     def swipe_word(self, word: str):
         """Execute swipe motion to input a word."""
         # Find the path of grid positions
@@ -393,7 +405,7 @@ class WordHuntSolver:
             
         except Exception as e:
             print(f"Error swiping word {word}: {e}")
-    
+
     def solve(self):
         """Main solving loop."""
         # Focus window before capture
@@ -421,20 +433,15 @@ class WordHuntSolver:
         words = self.find_words()
         print(f"\nFound {len(words)} possible words")
         
-        # Sort words by length (longest first)
-        words.sort(key=len, reverse=True)
+        # Sort words by length (longest first) and alphabetically
+        words.sort(key=lambda x: (-len(x), x))
         
         # Execute swipes for each word
         for word in words:
             print(f"Swiping word: {word}")
             self.swipe_word(word)
-            
-            # Check if user wants to continue after every few words
-            if len(word) > 20:  # Arbitrary threshold for checking
-                response = input("\nContinue swiping? (y/n): ")
-                if response.lower() != 'y':
-                    break
-    
+            time.sleep(0.1)  # Adjust as needed
+
     def __del__(self):
         cv2.destroyAllWindows()
 
