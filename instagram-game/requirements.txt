@@ -7,4 +7,3 @@ pyautogui>=0.9.53
 pytesseract>=0.3.10
 pynput>=1.7.6
 pyobjc-framework-Quartz>=9.0
-pyobjc-framework-AppKit>=9.0

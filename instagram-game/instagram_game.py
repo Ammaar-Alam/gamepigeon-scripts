@@ -5,8 +5,22 @@ import time
 import sys
 import signal
 import cv2
-import Quartz
-import AppKit
+from Cocoa import NSEvent
+from Quartz import (
+    CGEventCreateMouseEvent,
+    CGEventPost,
+    CGEventSourceCreate,
+    kCGEventSourceStateHIDSystemState,
+    kCGEventLeftMouseDown,
+    kCGEventLeftMouseDragged,
+    kCGEventLeftMouseUp,
+    kCGMouseButtonLeft,
+    kCGHIDEventTap,
+    CGPointMake,
+    CGEventSetIntegerValueField,
+    kCGMouseEventPressure,
+    kCGEventMouseMoved
+)
 import subprocess
 import os
 from pynput.mouse import Button, Controller
@@ -26,6 +40,14 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
+
+def create_mouse_event(type, point, source=None):
+    """Create a mouse event with proper source state."""
+    if source is None:
+        source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+    event = CGEventCreateMouseEvent(source, type, point, kCGMouseButtonLeft)
+    CGEventSetIntegerValueField(event, kCGMouseEventPressure, 255)
+    return event
 
 def find_iphone_mirror_window():
     """Find the iPhone Mirror window and get its position."""
@@ -90,42 +112,6 @@ def focus_iphone_window():
     except Exception as e:
         print(f"Focus failed: {e}")
 
-def create_mouse_event(type, point):
-    """Create a CGEvent with proper source state."""
-    source = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
-    event = Quartz.CGEventCreateMouseEvent(
-        source,
-        type,
-        point,
-        Quartz.kCGMouseButtonLeft
-    )
-    return event
-
-def hold_mouse_down():
-    """Hold down the left mouse button using Quartz with proper event source."""
-    try:
-        point = Quartz.CGPointMake(mouse.position[0], mouse.position[1])
-        event = create_mouse_event(Quartz.kCGEventLeftMouseDown, point)
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
-        
-        # Create and post a dragged event to maintain the press
-        drag_event = create_mouse_event(Quartz.kCGEventLeftMouseDragged, point)
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag_event)
-        
-        print("Mouse button held down with Quartz")
-    except Exception as e:
-        print(f"Error holding mouse down: {e}")
-
-def release_mouse():
-    """Release the left mouse button using Quartz with proper event source."""
-    try:
-        point = Quartz.CGPointMake(mouse.position[0], mouse.position[1])
-        event = create_mouse_event(Quartz.kCGEventLeftMouseUp, point)
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
-        print("Mouse button released with Quartz")
-    except Exception as e:
-        print(f"Error releasing mouse: {e}")
-
 class InstagramGame:
     def __init__(self):
         window_info = find_iphone_mirror_window()
@@ -142,7 +128,8 @@ class InstagramGame:
         self.bar_y = int(self.WINDOW_HEIGHT * 0.93)
         self.play_again_y = int(self.WINDOW_HEIGHT * 0.92)
         
-        self.GAME_TOP = 150
+        # Increase GAME_TOP to be well below the score display
+        self.GAME_TOP = int(self.WINDOW_HEIGHT * 0.45)  # 45% from top
         self.GAME_BOTTOM = self.WINDOW_HEIGHT - 50
         print(f"Game area: y={self.GAME_TOP} to y={self.GAME_BOTTOM}")
         
@@ -162,6 +149,7 @@ class InstagramGame:
         self.game_started = False
         self.first_start = True
         self.game_start_time = None
+        self.last_move_time = None
         
         self.sct = mss.mss()
         self.monitor = {
@@ -180,6 +168,38 @@ class InstagramGame:
         # Create debug window
         cv2.namedWindow("Debug View", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Debug View", 344, 764)
+        
+        # Create event source
+        self.event_source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+        
+        # Initial mouse setup
+        self.setup_initial_mouse_state()
+    
+    def setup_initial_mouse_state(self):
+        """Set up initial mouse state using Quartz events."""
+        try:
+            initial_x = self.window_x + self.WINDOW_WIDTH // 2
+            initial_y = self.window_y + self.bar_y
+            point = CGPointMake(initial_x, initial_y)
+            
+            # Move to position
+            move_event = create_mouse_event(kCGEventMouseMoved, point, self.event_source)
+            CGEventPost(kCGHIDEventTap, move_event)
+            time.sleep(0.1)
+            
+            # Press mouse button
+            down_event = create_mouse_event(kCGEventLeftMouseDown, point, self.event_source)
+            CGEventPost(kCGHIDEventTap, down_event)
+            
+            # Initial drag event
+            drag_event = create_mouse_event(kCGEventLeftMouseDragged, point, self.event_source)
+            CGEventPost(kCGHIDEventTap, drag_event)
+            
+            self.last_move_time = time.time()
+            print("Initial mouse state set up")
+            
+        except Exception as e:
+            print(f"Error in initial mouse setup: {e}")
     
     def scale_coordinates(self, x, y):
         return int(x / self.scale_factor), int(y / self.scale_factor)
@@ -239,9 +259,13 @@ class InstagramGame:
         return predicted_x
 
     def detect_emoji(self, screenshot):
-        """Original working emoji detection."""
+        """Simplified emoji detection focusing only on the game area."""
         try:
             img = np.array(screenshot)
+            
+            # Create a mask for the game area
+            game_mask = np.zeros(img.shape[:2], dtype=np.uint8)
+            game_mask[self.GAME_TOP:self.GAME_BOTTOM, :] = 255
             
             # Convert to HSV color space
             hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -251,14 +275,19 @@ class InstagramGame:
             upper_color = np.array([30, 255, 255])
             
             # Create a mask for the emoji color
-            mask = cv2.inRange(hsv_img, lower_color, upper_color)
+            color_mask = cv2.inRange(hsv_img, lower_color, upper_color)
+            
+            # Apply game area mask
+            final_mask = cv2.bitwise_and(color_mask, game_mask)
             
             # Show debug view
             debug_img = img.copy()
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(debug_img, contours, -1, (0, 255, 0), 2)
-            cv2.imshow("Debug View", debug_img)
-            cv2.waitKey(1)
+            
+            # Draw game boundaries
+            cv2.line(debug_img, (0, self.GAME_TOP), (self.WINDOW_WIDTH, self.GAME_TOP), (0, 0, 255), 2)
+            cv2.line(debug_img, (0, self.GAME_BOTTOM), (self.WINDOW_WIDTH, self.GAME_BOTTOM), (0, 0, 255), 2)
+            
+            contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
             if contours:
                 # Find the largest contour
@@ -267,20 +296,22 @@ class InstagramGame:
                 x_center = x + w // 2
                 y_center = y + h // 2
                 
+                # Draw detection
+                cv2.circle(debug_img, (x_center, y_center), 5, (0, 255, 0), -1)
+                cv2.drawContours(debug_img, [largest_contour], -1, (0, 255, 0), 2)
+                
                 x_scaled, y_scaled = self.scale_coordinates(x_center, y_center)
                 self.update_tracking(x_scaled, y_scaled)
                 predicted_x = self.predict_position(x_scaled, y_scaled)
                 
-                # Draw detection on debug view
-                cv2.circle(debug_img, (x_center, y_center), 5, (0, 0, 255), -1)
                 cv2.imshow("Debug View", debug_img)
                 cv2.waitKey(1)
                 
-                print(f"Emoji detected at ({x_scaled}, {y_scaled})")
                 return predicted_x
-            else:
-                print("Emoji not detected.")
-                return None
+            
+            cv2.imshow("Debug View", debug_img)
+            cv2.waitKey(1)
+            return None
                 
         except Exception as e:
             print(f"Error in detect_emoji: {e}")
@@ -294,8 +325,18 @@ class InstagramGame:
             screen_x = max(0, min(screen_x, self.sct.monitors[1]["width"]))
             screen_y = max(0, min(screen_y, self.sct.monitors[1]["height"]))
             
-            pyautogui.moveTo(screen_x, screen_y, duration=0, _pause=False)
-            pyautogui.click()
+            # Release mouse using Quartz
+            point = CGPointMake(screen_x, screen_y)
+            up_event = create_mouse_event(kCGEventLeftMouseUp, point, self.event_source)
+            CGEventPost(kCGHIDEventTap, up_event)
+            time.sleep(0.1)
+            
+            # Click using Quartz events
+            down_event = create_mouse_event(kCGEventLeftMouseDown, point, self.event_source)
+            CGEventPost(kCGHIDEventTap, down_event)
+            time.sleep(0.1)
+            up_event = create_mouse_event(kCGEventLeftMouseUp, point, self.event_source)
+            CGEventPost(kCGHIDEventTap, up_event)
             
             self.game_started = True
             self.first_start = False
@@ -313,30 +354,40 @@ class InstagramGame:
             self.score = 0
             self.last_hit_time = None
             
+            # Reset mouse state
+            self.setup_initial_mouse_state()
+            
         except Exception as e:
             print(f"Error clicking play: {e}")
 
     def move_bar(self, target_x):
+        """Move bar using Quartz events with proper timing."""
         try:
+            current_time = time.time()
+            
+            # Add small delay between moves
+            if self.last_move_time and current_time - self.last_move_time < 0.016:  # ~60 FPS
+                return
+            
             screen_x = self.window_x + target_x
             screen_y = self.window_y + self.bar_y
-
-            print(f"Moving bar to screen coordinates: ({screen_x}, {screen_y})")
-
+            
             screen_x = max(0, min(screen_x, self.sct.monitors[1]["width"] - 1))
             screen_y = max(0, min(screen_y, self.sct.monitors[1]["height"] - 1))
-
-            # Create and post a mouse moved event
-            point = Quartz.CGPointMake(screen_x, screen_y)
-            move_event = create_mouse_event(Quartz.kCGEventMouseMoved, point)
-            Quartz.CGEventPost(Quartz.kCGHIDEventTap, move_event)
             
-            # Create and post a dragged event to maintain the press
-            drag_event = create_mouse_event(Quartz.kCGEventLeftMouseDragged, point)
-            Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag_event)
+            point = CGPointMake(screen_x, screen_y)
+            
+            # Create drag event
+            drag_event = create_mouse_event(kCGEventLeftMouseDragged, point, self.event_source)
+            CGEventPost(kCGHIDEventTap, drag_event)
+            
+            self.last_move_time = current_time
+            print(f"Bar moved to: ({screen_x}, {screen_y})")
             
         except Exception as e:
             print(f"Error moving bar: {e}")
+            # Reset mouse state on error
+            self.setup_initial_mouse_state()
             
     def __del__(self):
         cv2.destroyAllWindows()
