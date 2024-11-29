@@ -51,7 +51,7 @@ def main():
                 
                 # Get correct letter from user
                 letter = input(f"Enter letter for cell {i},{j} (or 'q' to quit): ").upper()
-                if letter == 'Q':
+                if letter == 'q':
                     cv2.destroyAllWindows()
                     return
                 
