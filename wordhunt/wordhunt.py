@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 import pytesseract
 from typing import List, Tuple, Set
 import os
-from move_window import move_iphone_mirror_to_corner, focus_iphone_window, find_iphone_mirror_window
+import subprocess
 from Quartz import (
     CGEventCreateMouseEvent,
     CGEventPost,
@@ -22,8 +22,86 @@ from Quartz import (
     kCGEventLeftMouseUp,
     kCGMouseButtonLeft,
     kCGHIDEventTap,
-    CGPointMake
+    CGPointMake,
+    CGEventSetIntegerValueField,
+    kCGMouseEventPressure
 )
+# Import additional required Quartz modules
+import Quartz
+
+def create_mouse_event(type, point, source=None):
+    """Create a mouse event with proper source state and pressure."""
+    if source is None:
+        source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+    event = CGEventCreateMouseEvent(source, type, point, kCGMouseButtonLeft)
+    # Add pressure for more reliable mouse events
+    CGEventSetIntegerValueField(event, kCGMouseEventPressure, 255)
+    return event
+
+def find_iphone_mirror_window():
+    """Find the iPhone Mirror window and get its position."""
+    try:
+        windows = Quartz.CGWindowListCopyWindowInfo(
+            Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements,
+            Quartz.kCGNullWindowID
+        )
+        
+        for window in windows:
+            name = window.get(Quartz.kCGWindowName, '')
+            owner = window.get(Quartz.kCGWindowOwnerName, '')
+            
+            if 'iPhone Mirroring' in str(owner):  # Updated to match exact window name
+                bounds = window.get(Quartz.kCGWindowBounds)
+                if bounds:
+                    print(f"Found iPhone Mirroring window: {bounds}")
+                    return (
+                        int(bounds['X']),
+                        int(bounds['Y']),
+                        int(bounds['Width']),
+                        int(bounds['Height'])
+                    )
+    except Exception as e:
+        print(f"Error finding window: {e}")
+    
+    return None
+
+def move_iphone_mirror_to_corner():
+    """Move iPhone Mirroring window to bottom right corner and focus it."""
+    script = """
+    tell application "System Events"
+        tell process "iPhone Mirroring"
+            set frontmost to true
+            delay 0.5
+            click menu item "Bottom Right" of menu 1 of menu item "Move & Resize" of menu 1 of menu bar item "Window" of menu bar 1
+        end tell
+    end tell
+    """
+    try:
+        subprocess.run(["osascript", "-e", script], capture_output=True)
+        time.sleep(0.5)
+    except Exception as e:
+        print(f"AppleScript failed: {e}")
+    
+    window_info = find_iphone_mirror_window()
+    if window_info:
+        print(f"Window position after move: {window_info}")
+        return window_info
+    return None
+
+def focus_iphone_window():
+    """Focus the iPhone Mirroring window."""
+    script = """
+    tell application "System Events"
+        tell process "iPhone Mirroring"
+            set frontmost to true
+        end tell
+    end tell
+    """
+    try:
+        subprocess.run(["osascript", "-e", script], capture_output=True)
+        time.sleep(0.1)
+    except Exception as e:
+        print(f"Focus failed: {e}")
 
 class LetterCNN(nn.Module):
     def __init__(self):
@@ -118,13 +196,18 @@ def create_mouse_event(type, point, source=None):
 
 class WordHuntSolver:
     def __init__(self):
-        # Initialize window position
+        # Initialize window position using the accurate window finder
         window_info = find_iphone_mirror_window()
         if not window_info:
             raise Exception("Could not find iPhone Mirror window!")
         
+        # Get screen dimensions for coordinate conversion
+        screen_width, screen_height = pyautogui.size()
+        print(f"Screen dimensions: {screen_width}x{screen_height}")
+        
+        # Store original window info
         self.window_x, self.window_y, self.window_width, self.window_height = window_info
-        print(f"Window dimensions: {window_info}")
+        print(f"Window position: ({self.window_x}, {self.window_y}) {self.window_width}x{self.window_height}")
         
         # Initialize screen capture
         self.sct = mss.mss()
@@ -135,6 +218,7 @@ class WordHuntSolver:
             "height": self.window_height,
             "mon": 1
         }
+        
         print(f"Capture monitor: {self.monitor}")
         
         # Initialize CNN model
@@ -522,49 +606,69 @@ class WordHuntSolver:
         return []
 
     def swipe_word(self, word: str):
-        """Execute swipe motion to input a word."""
-        # Find the path of grid positions
+        """Execute swipe motion to input a word using Quartz events."""
         path = self.find_word_path(word)
         if not path:
             print(f"Could not find path for word: {word}")
             return
-
+        
         try:
-            # Use cell positions directly
-            points = [self.cell_positions[pos] for pos in path]
-            start = points[0]
-
-            # Create mouse events
-            point = CGPointMake(start[0], start[1])
-
+            screen_width, screen_height = pyautogui.size()
+            points = []
+            
+            # Calculate board scaling - make board take up 80% of window width
+            board_width = self.board_bounds['right'] - self.board_bounds['left']
+            board_height = self.board_bounds['bottom'] - self.board_bounds['top']
+            scale_factor = (self.window_width * 0.8) / board_width
+            
+            for grid_pos in path:
+                i, j = grid_pos
+                
+                # Calculate normalized position (0-1 range)
+                norm_x = (j + 0.5) / self.GRID_SIZE
+                norm_y = (i + 0.5) / self.GRID_SIZE
+                
+                # Convert to window space
+                window_space_x = self.window_x + (self.window_width * 0.1) + (norm_x * self.window_width * 0.8)
+                window_space_y = self.window_y + (self.window_height * 0.45) + (norm_y * self.window_height * 0.4)
+                
+                # Keep coordinates within window bounds
+                window_space_x = max(self.window_x, min(self.window_x + self.window_width, window_space_x))
+                window_space_y = max(self.window_y, min(self.window_y + self.window_height, window_space_y))
+                
+                # Convert to Quartz coordinate system (flip Y)
+                quartz_y = screen_height - window_space_y
+                
+                print(f"Grid pos {i},{j} -> Window pos ({window_space_x}, {window_space_y}) -> Quartz pos ({window_space_x}, {quartz_y})")
+                points.append((window_space_x, quartz_y))
+            
+            # Create event source
+            source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+            
             # Mouse down at start
-            down = create_mouse_event(kCGEventLeftMouseDown, point, self.event_source)
-            CGEventPost(kCGHIDEventTap, down)
+            start_point = CGPointMake(points[0][0], points[0][1])
+            down_event = create_mouse_event(kCGEventLeftMouseDown, start_point, source)
+            CGEventPost(kCGHIDEventTap, down_event)
             time.sleep(0.05)
-
+            
             # Drag through points
             for point in points[1:]:
-                drag = create_mouse_event(
-                    kCGEventLeftMouseDragged,
-                    CGPointMake(point[0], point[1]),
-                    self.event_source
-                )
-                CGEventPost(kCGHIDEventTap, drag)
+                quartz_point = CGPointMake(point[0], point[1])
+                drag_event = create_mouse_event(kCGEventLeftMouseDragged, quartz_point, source)
+                CGEventPost(kCGHIDEventTap, drag_event)
                 time.sleep(0.05)
-
+            
             # Release at end
-            up = create_mouse_event(
-                kCGEventLeftMouseUp,
-                CGPointMake(points[-1][0], points[-1][1]),
-                self.event_source
-            )
-            CGEventPost(kCGHIDEventTap, up)
-
+            end_point = CGPointMake(points[-1][0], points[-1][1])
+            up_event = create_mouse_event(kCGEventLeftMouseUp, end_point, source)
+            CGEventPost(kCGHIDEventTap, up_event)
+            
             # Wait between words
             time.sleep(0.2)
-
+            
         except Exception as e:
             print(f"Error swiping word {word}: {e}")
+            traceback.print_exc()
 
 
     def solve(self):
@@ -613,9 +717,10 @@ def main():
     input()
     
     try:
-        # Move window to corner
+        # Move window to corner using the improved window positioning
         print("\nMoving iPhone window to corner...")
-        if not move_iphone_mirror_to_corner():
+        window_info = move_iphone_mirror_to_corner()
+        if not window_info:
             print("Failed to position window!")
             return
         
