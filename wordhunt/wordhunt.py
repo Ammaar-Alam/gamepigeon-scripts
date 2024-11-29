@@ -170,6 +170,35 @@ class WordHuntSolver:
         # Configure PyAutoGUI
         pyautogui.FAILSAFE = True
 
+        # Initialize window position
+        window_info = find_iphone_mirror_window()
+        if not window_info:
+            raise Exception("Could not find iPhone Mirror window!")
+
+        self.window_x, self.window_y, self.window_width, self.window_height = window_info
+        print(f"Window dimensions: {window_info}")
+
+        # Save original window_y for screen capture
+        self.window_y_orig = self.window_y
+
+        # Get screen height
+        screen_height = pyautogui.size()[1]
+
+        # Adjust window_y to match Quartz coordinate system
+        self.window_y = screen_height - (self.window_y + self.window_height)
+        print(f"Adjusted window_y: {self.window_y}")
+
+        # Initialize screen capture with original window_y
+        self.sct = mss.mss()
+        self.monitor = {
+            "top": self.window_y_orig,
+            "left": self.window_x,
+            "width": self.window_width,
+            "height": self.window_height,
+            "mon": 1
+        }
+        print(f"Capture monitor: {self.monitor}")
+
     def detect_game_board(self, img: np.ndarray) -> Tuple[dict, np.ndarray]:
         """Detect the game board and calculate accurate board bounds."""
         debug_img = img.copy()
@@ -499,20 +528,20 @@ class WordHuntSolver:
         if not path:
             print(f"Could not find path for word: {word}")
             return
-        
+
         try:
-            # Convert grid positions to screen coordinates
+            # Use cell positions directly
             points = [self.cell_positions[pos] for pos in path]
             start = points[0]
-            
+
             # Create mouse events
             point = CGPointMake(start[0], start[1])
-            
+
             # Mouse down at start
             down = create_mouse_event(kCGEventLeftMouseDown, point, self.event_source)
             CGEventPost(kCGHIDEventTap, down)
             time.sleep(0.05)
-            
+
             # Drag through points
             for point in points[1:]:
                 drag = create_mouse_event(
@@ -522,7 +551,7 @@ class WordHuntSolver:
                 )
                 CGEventPost(kCGHIDEventTap, drag)
                 time.sleep(0.05)
-            
+
             # Release at end
             up = create_mouse_event(
                 kCGEventLeftMouseUp,
@@ -530,12 +559,13 @@ class WordHuntSolver:
                 self.event_source
             )
             CGEventPost(kCGHIDEventTap, up)
-            
+
             # Wait between words
             time.sleep(0.2)
-            
+
         except Exception as e:
             print(f"Error swiping word {word}: {e}")
+
 
     def solve(self):
         """Main solving loop."""
