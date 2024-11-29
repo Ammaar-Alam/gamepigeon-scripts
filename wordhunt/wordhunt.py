@@ -4,6 +4,10 @@ import cv2
 import pyautogui
 import time
 from PIL import Image
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.transforms as transforms
 import pytesseract
 from typing import List, Tuple, Set
 import os
@@ -20,6 +24,80 @@ from Quartz import (
     kCGHIDEventTap,
     CGPointMake
 )
+
+class LetterCNN(nn.Module):
+    def __init__(self):
+        super(LetterCNN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, 3)
+        self.conv2 = nn.Conv2d(32, 64, 3)
+        self.fc1 = nn.Linear(64 * 5 * 5, 128)
+        self.fc2 = nn.Linear(128, 26)  # 26 letters
+        self.dropout = nn.Dropout(0.5)
+        
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.max_pool2d(x, 2)
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, 2)
+        x = x.view(-1, 64 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1)
+
+def preprocess_for_cnn(cell_img: np.ndarray) -> torch.Tensor:
+    """Preprocess image for CNN input."""
+    # Convert to grayscale if needed
+    if len(cell_img.shape) == 3:
+        gray = cv2.cvtColor(cell_img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = cell_img
+    
+    # Resize to fixed size
+    resized = cv2.resize(gray, (28, 28))
+    
+    # Convert to PIL Image
+    pil_img = Image.fromarray(resized)
+    
+    # Define transforms
+    transform = transforms.Compose([
+        transforms.Grayscale(),
+        transforms.Resize((28, 28)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,))
+    ])
+    
+    # Apply transforms
+    tensor = transform(pil_img)
+    tensor = tensor.unsqueeze(0)  # Add batch dimension
+    
+    return tensor
+
+def train_model(model, train_loader, device):
+    """Training function for the CNN."""
+    optimizer = torch.optim.Adam(model.parameters())
+    criterion = nn.CrossEntropyLoss()
+    
+    model.train()
+    for epoch in range(10):  # Number of epochs
+        for batch_idx, (data, target) in enumerate(train_loader):
+            data, target = data.to(device), target.to(device)
+            optimizer.zero_grad()
+            output = model(data)
+            loss = criterion(output, target)
+            loss.backward()
+            optimizer.step()
+
+def save_model(model, path):
+    """Save the trained model."""
+    torch.save(model.state_dict(), path)
+
+def load_model(path):
+    """Load a trained model."""
+    model = LetterCNN()
+    model.load_state_dict(torch.load(path))
+    model.eval()
+    return model
 
 def create_mouse_event(type, point, source=None):
     """Create a mouse event with proper source state."""
@@ -116,10 +194,10 @@ class WordHuntSolver:
         y += top_crop
         
         # Adjust for margins
-        margin_left = 75   # Adjust this value to fix the left margin
-        margin_right = 75  # Adjust this value to fix the right margin
-        margin_top = 0     # Adjust if needed
-        margin_bottom = 85  # Adjust if needed
+        margin_left = 77   # Adjust this value to fix the left margin
+        margin_right = 77  # Adjust this value to fix the right margin
+        margin_top = 5     # Adjust if needed
+        margin_bottom = 95  # Adjust if needed
         
         board_left = x + margin_left
         board_right = x + w - margin_right
@@ -206,72 +284,82 @@ class WordHuntSolver:
             gray = cell_img
         
         # Increase contrast
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         gray = clahe.apply(gray)
         
-        # Threshold to isolate black text
-        _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
+        # Initial noise reduction
+        gray = cv2.GaussianBlur(gray, (3,3), 0)
         
-        # Remove noise
+        # Binary threshold with Otsu's method
+        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        
+        # Clean up noise and strengthen letter shapes
         kernel = np.ones((2,2), np.uint8)
-        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
         
-        # Add padding
+        # Add padding (important for Tesseract)
+        padding = 20
         padded = cv2.copyMakeBorder(
-            thresh,
-            20, 20, 20, 20,
+            binary,
+            padding, padding, padding, padding,
             cv2.BORDER_CONSTANT,
             value=0
         )
         
-        return padded
+        # Scale up image
+        scale_factor = 3
+        resized = cv2.resize(padded, None, 
+                            fx=scale_factor, 
+                            fy=scale_factor, 
+                            interpolation=cv2.INTER_CUBIC)
+        
+        return resized
 
     def process_image(self, img: np.ndarray) -> List[List[str]]:
-        """Process the captured image to extract letters."""
+        """Process the captured image using CNN."""
         if img is None or img.size == 0:
             print("Error: Empty image provided to process_image")
             return [['' for _ in range(self.GRID_SIZE)] for _ in range(self.GRID_SIZE)]
         
-        # Initialize letters grid
         letters = [['' for _ in range(self.GRID_SIZE)] for _ in range(self.GRID_SIZE)]
-        
         cell_size_w = self.board_bounds['cell_size_w']
         cell_size_h = self.board_bounds['cell_size_h']
         debug_img = img.copy()
         
-        # Process each cell
+        # Letter mapping
+        idx_to_letter = {i: chr(i + 65) for i in range(26)}  # A-Z
+        
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
-                # Extract cell image
-                cell_top = int(i * cell_size_h)
-                cell_bottom = int((i + 1) * cell_size_h)
-                cell_left = int(j * cell_size_w)
-                cell_right = int((j + 1) * cell_size_w)
+                # Extract cell
+                margin = 2
+                cell_top = max(0, int(i * cell_size_h + margin))
+                cell_bottom = min(img.shape[0], int((i + 1) * cell_size_h - margin))
+                cell_left = max(0, int(j * cell_size_w + margin))
+                cell_right = min(img.shape[1], int((j + 1) * cell_size_w - margin))
+                
                 cell_img = img[cell_top:cell_bottom, cell_left:cell_right]
                 
-                # Preprocess cell image
-                processed_cell = self.preprocess_cell(cell_img)
+                if cell_img.size == 0 or cell_img.shape[0] == 0 or cell_img.shape[1] == 0:
+                    continue
                 
-                # Show processed cell for debugging
-                cv2.imshow(f"Cell {i},{j}", processed_cell)
-                cv2.waitKey(1)
+                # Preprocess for CNN
+                tensor = preprocess_for_cnn(cell_img)
+                tensor = tensor.to(self.device)
                 
-                # Convert to PIL Image for Tesseract
-                pil_img = Image.fromarray(processed_cell)
+                # Get prediction
+                with torch.no_grad():
+                    output = self.model(tensor)
+                    pred_idx = output.argmax(dim=1).item()
+                    letter = idx_to_letter[pred_idx]
+                    conf = torch.exp(output.max()).item()
                 
-                # Use pytesseract with custom configuration
-                letter = pytesseract.image_to_string(
-                    pil_img,
-                    config='--psm 10 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-                ).strip()
+                if conf > 0.5:  # Confidence threshold
+                    letters[i][j] = letter.lower()
+                    print(f"Detected letter at {i},{j}: {letter} (confidence: {conf:.2f})")
                 
-                if letter and len(letter) > 0 and letter[0].isalpha():
-                    letters[i][j] = letter[0].lower()
-                    print(f"Detected letter at {i},{j}: {letter[0]}")
-                else:
-                    print(f"No valid letter detected at {i},{j}")
-                
-                # Draw debug visualization
+                # Debug visualization
                 cv2.rectangle(
                     debug_img,
                     (cell_left, cell_top),
@@ -290,7 +378,6 @@ class WordHuntSolver:
                         2
                     )
         
-        # Show debug view
         cv2.imshow("Debug View", debug_img)
         cv2.waitKey(1)
         
