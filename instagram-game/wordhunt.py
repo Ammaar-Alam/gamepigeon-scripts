@@ -71,8 +71,8 @@ class WordHuntSolver:
         
         # Crop to middle portion of the window where game board is likely to be
         height, width = img.shape[:2]
-        top_crop = int(height * 0.3)  # Skip top 30%
-        bottom_crop = int(height * 0.8)  # Up to 80% from top
+        top_crop = int(height * 0.45)  # Skip top 40%
+        bottom_crop = int(height * 0.85)  # Up to 90% from top
         
         cropped = img[top_crop:bottom_crop, :]
         cv2.imshow("Cropped Input", cropped)
@@ -127,7 +127,7 @@ class WordHuntSolver:
         # Find the largest square-like contour
         board_contour = None
         max_area = 0
-        min_area = (width * 0.3) * (width * 0.3)  # Minimum size based on width
+        min_area = (height * 0.01) * (width * 0.01)  # Minimum size based on width
         
         # Draw all contours for debugging
         contour_img = cropped.copy()
@@ -163,33 +163,41 @@ class WordHuntSolver:
         # Adjust coordinates to account for cropping
         y += top_crop
         
-        # Add small margin to ensure we're inside the green border
-        margin = int(w * 0.05)  # 5% margin
-        board_img = img[y+margin:y+h+margin, x+margin:x+w+margin]
-        
-        # Calculate cell size
-        cell_size = (w - 2*margin) // self.GRID_SIZE
-        
-        # Store board bounds and cell positions
+        # Calculate cell sizes based on the actual board size
+        cell_size_w = w // self.GRID_SIZE
+        cell_size_h = h // self.GRID_SIZE
+
+        # Calculate the board bounds to ensure we capture all cells
+        board_top = y + (h - cell_size_h * self.GRID_SIZE) // 2  # Center the grid vertically
+        board_left = x + (w - cell_size_w * self.GRID_SIZE) // 2  # Center the grid horizontally
+
+        # Store board bounds
         self.board_bounds = {
-            'top': y + margin,
-            'bottom': y + h - margin,
-            'left': x + margin,
-            'right': x + w - margin,
-            'cell_size': cell_size
+            'top': board_top,
+            'bottom': board_top + cell_size_h * self.GRID_SIZE,
+            'left': board_left,
+            'right': board_left + cell_size_w * self.GRID_SIZE,
+            'cell_size_w': cell_size_w,
+            'cell_size_h': cell_size_h
         }
-        
+
         # Calculate cell positions
         self.cell_positions = {}
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
-                center_x = x + margin + (j * cell_size) + (cell_size // 2)
-                center_y = y + margin + (i * cell_size) + (cell_size // 2)
+                center_x = board_left + (j * cell_size_w) + (cell_size_w // 2)
+                center_y = board_top + (i * cell_size_h) + (cell_size_h // 2)
                 self.cell_positions[(i, j)] = (
                     self.window_x + center_x,
                     self.window_y + center_y
                 )
-        
+
+        # Extract board image
+        board_img = img[
+            board_top:board_top + cell_size_h * self.GRID_SIZE,
+            board_left:board_left + cell_size_w * self.GRID_SIZE
+        ]
+
         print(f"Board bounds: {self.board_bounds}")
         return self.board_bounds, board_img
     
@@ -265,18 +273,19 @@ class WordHuntSolver:
         # Initialize letters grid
         letters = [['' for _ in range(self.GRID_SIZE)] for _ in range(self.GRID_SIZE)]
         
-        cell_size = self.board_bounds['cell_size']
+        cell_size_w = self.board_bounds['cell_size_w']
+        cell_size_h = self.board_bounds['cell_size_h']
         debug_img = img.copy()
-        
+
         # Process each cell
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
                 # Extract cell image
-                cell_top = i * cell_size
-                cell_left = j * cell_size
+                cell_top = i * cell_size_h
+                cell_left = j * cell_size_w
                 cell_img = img[
-                    cell_top:cell_top + cell_size,
-                    cell_left:cell_left + cell_size
+                    cell_top:cell_top + cell_size_h,
+                    cell_left:cell_left + cell_size_w
                 ]
                 
                 # Preprocess cell image
