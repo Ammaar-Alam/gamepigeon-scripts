@@ -90,29 +90,37 @@ def focus_iphone_window():
     except Exception as e:
         print(f"Focus failed: {e}")
 
+def create_mouse_event(type, point):
+    """Create a CGEvent with proper source state."""
+    source = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
+    event = Quartz.CGEventCreateMouseEvent(
+        source,
+        type,
+        point,
+        Quartz.kCGMouseButtonLeft
+    )
+    return event
+
 def hold_mouse_down():
-    """Hold down the left mouse button using Quartz."""
+    """Hold down the left mouse button using Quartz with proper event source."""
     try:
-        event = Quartz.CGEventCreateMouseEvent(
-            None, 
-            Quartz.kCGEventLeftMouseDown, 
-            Quartz.CGPointMake(mouse.position[0], mouse.position[1]),
-            Quartz.kCGMouseButtonLeft
-        )
+        point = Quartz.CGPointMake(mouse.position[0], mouse.position[1])
+        event = create_mouse_event(Quartz.kCGEventLeftMouseDown, point)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+        
+        # Create and post a dragged event to maintain the press
+        drag_event = create_mouse_event(Quartz.kCGEventLeftMouseDragged, point)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag_event)
+        
         print("Mouse button held down with Quartz")
     except Exception as e:
         print(f"Error holding mouse down: {e}")
 
 def release_mouse():
-    """Release the left mouse button using Quartz."""
+    """Release the left mouse button using Quartz with proper event source."""
     try:
-        event = Quartz.CGEventCreateMouseEvent(
-            None, 
-            Quartz.kCGEventLeftMouseUp, 
-            Quartz.CGPointMake(mouse.position[0], mouse.position[1]),
-            Quartz.kCGMouseButtonLeft
-        )
+        point = Quartz.CGPointMake(mouse.position[0], mouse.position[1])
+        event = create_mouse_event(Quartz.kCGEventLeftMouseUp, point)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
         print("Mouse button released with Quartz")
     except Exception as e:
@@ -168,6 +176,10 @@ class InstagramGame:
         self.prev_img = None
         self.last_hit_time = None
         self.min_hit_interval = 0.5
+        
+        # Create debug window
+        cv2.namedWindow("Debug View", cv2.WINDOW_NORMAL)
+        cv2.resizeWindow("Debug View", 344, 764)
     
     def scale_coordinates(self, x, y):
         return int(x / self.scale_factor), int(y / self.scale_factor)
@@ -227,69 +239,49 @@ class InstagramGame:
         return predicted_x
 
     def detect_emoji(self, screenshot):
-        """Enhanced emoji detection using multiple color spaces."""
+        """Original working emoji detection."""
         try:
             img = np.array(screenshot)
             
-            # Convert to multiple color spaces
+            # Convert to HSV color space
             hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-            lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
             
-            # HSV color ranges for emoji
-            hsv_ranges = [
-                (np.array([20, 100, 100]), np.array([30, 255, 255])),  # Yellow
-                (np.array([0, 100, 100]), np.array([10, 255, 255])),   # Red
-                (np.array([170, 100, 100]), np.array([180, 255, 255])) # Red (wrap)
-            ]
+            # Define color range for the emoji
+            lower_color = np.array([20, 100, 100])
+            upper_color = np.array([30, 255, 255])
             
-            # Combine masks from different color spaces
-            combined_mask = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
+            # Create a mask for the emoji color
+            mask = cv2.inRange(hsv_img, lower_color, upper_color)
             
-            for lower_hsv, upper_hsv in hsv_ranges:
-                hsv_mask = cv2.inRange(hsv_img, lower_hsv, upper_hsv)
-                combined_mask = cv2.bitwise_or(combined_mask, hsv_mask)
-            
-            # Add LAB color space detection for yellow
-            lab_lower = np.array([150, 120, 150])
-            lab_upper = np.array([250, 145, 255])
-            lab_mask = cv2.inRange(lab_img, lab_lower, lab_upper)
-            combined_mask = cv2.bitwise_or(combined_mask, lab_mask)
-            
-            # Apply morphological operations
-            kernel = np.ones((3,3), np.uint8)
-            combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
-            combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
-            
-            # Find contours
-            contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # Show debug view
+            debug_img = img.copy()
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(debug_img, contours, -1, (0, 255, 0), 2)
+            cv2.imshow("Debug View", debug_img)
+            cv2.waitKey(1)
             
             if contours:
-                # Filter contours by area and circularity
-                valid_contours = []
-                for contour in contours:
-                    area = cv2.contourArea(contour)
-                    if area > 100:  # Minimum area threshold
-                        perimeter = cv2.arcLength(contour, True)
-                        if perimeter > 0:
-                            circularity = 4 * np.pi * area / (perimeter * perimeter)
-                            if circularity > 0.7:  # Circle has circularity of 1
-                                valid_contours.append(contour)
+                # Find the largest contour
+                largest_contour = max(contours, key=cv2.contourArea)
+                x, y, w, h = cv2.boundingRect(largest_contour)
+                x_center = x + w // 2
+                y_center = y + h // 2
                 
-                if valid_contours:
-                    # Use the largest valid contour
-                    largest_contour = max(valid_contours, key=cv2.contourArea)
-                    x, y, w, h = cv2.boundingRect(largest_contour)
-                    x_center = x + w // 2
-                    y_center = y + h // 2
-                    
-                    x_scaled, y_scaled = self.scale_coordinates(x_center, y_center)
-                    self.update_tracking(x_scaled, y_scaled)
-                    predicted_x = self.predict_position(x_scaled, y_scaled)
-                    
-                    return predicted_x
-            
-            return None
-            
+                x_scaled, y_scaled = self.scale_coordinates(x_center, y_center)
+                self.update_tracking(x_scaled, y_scaled)
+                predicted_x = self.predict_position(x_scaled, y_scaled)
+                
+                # Draw detection on debug view
+                cv2.circle(debug_img, (x_center, y_center), 5, (0, 0, 255), -1)
+                cv2.imshow("Debug View", debug_img)
+                cv2.waitKey(1)
+                
+                print(f"Emoji detected at ({x_scaled}, {y_scaled})")
+                return predicted_x
+            else:
+                print("Emoji not detected.")
+                return None
+                
         except Exception as e:
             print(f"Error in detect_emoji: {e}")
             return None
@@ -334,9 +326,20 @@ class InstagramGame:
             screen_x = max(0, min(screen_x, self.sct.monitors[1]["width"] - 1))
             screen_y = max(0, min(screen_y, self.sct.monitors[1]["height"] - 1))
 
-            pyautogui.moveTo(screen_x, screen_y, duration=0, _pause=False)
+            # Create and post a mouse moved event
+            point = Quartz.CGPointMake(screen_x, screen_y)
+            move_event = create_mouse_event(Quartz.kCGEventMouseMoved, point)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, move_event)
+            
+            # Create and post a dragged event to maintain the press
+            drag_event = create_mouse_event(Quartz.kCGEventLeftMouseDragged, point)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag_event)
+            
         except Exception as e:
             print(f"Error moving bar: {e}")
+            
+    def __del__(self):
+        cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     print("\nINSTRUCTIONS:")
@@ -348,10 +351,11 @@ if __name__ == "__main__":
     
     try:
         game = InstagramGame()
-        game.play()
     except KeyboardInterrupt:
         print("\nGame automation stopped by user")
+        cv2.destroyAllWindows()
     except Exception as e:
         print(f"An error occurred: {str(e)}")
         import traceback
         traceback.print_exc()
+        cv2.destroyAllWindows()

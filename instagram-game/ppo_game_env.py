@@ -6,12 +6,11 @@ from gymnasium import spaces
 import pyautogui
 import subprocess
 import os
-from instagram_game import InstagramGame, find_iphone_mirror_window, move_iphone_mirror_to_corner, focus_iphone_window
+from instagram_game import InstagramGame, find_iphone_mirror_window, move_iphone_mirror_to_corner, focus_iphone_window, create_mouse_event
 import pytesseract
 import uuid
 from pynput.mouse import Button, Controller
 import Quartz
-import AppKit
 
 mouse = Controller()
 
@@ -59,13 +58,14 @@ class GameEnvironment(gym.Env):
     def _press_mouse(self):
         """Press and hold left mouse button using Quartz."""
         try:
-            event = Quartz.CGEventCreateMouseEvent(
-                None, 
-                Quartz.kCGEventLeftMouseDown, 
-                Quartz.CGPointMake(mouse.position[0], mouse.position[1]),
-                Quartz.kCGMouseButtonLeft
-            )
+            point = Quartz.CGPointMake(mouse.position[0], mouse.position[1])
+            event = create_mouse_event(Quartz.kCGEventLeftMouseDown, point)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+            
+            # Create and post a dragged event to maintain the press
+            drag_event = create_mouse_event(Quartz.kCGEventLeftMouseDragged, point)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag_event)
+            
             self.mouse_down = True
             time.sleep(0.1)
             print("Mouse button held down with Quartz")
@@ -75,12 +75,8 @@ class GameEnvironment(gym.Env):
     def _release_mouse(self):
         """Release left mouse button using Quartz."""
         try:
-            event = Quartz.CGEventCreateMouseEvent(
-                None, 
-                Quartz.kCGEventLeftMouseUp, 
-                Quartz.CGPointMake(mouse.position[0], mouse.position[1]),
-                Quartz.kCGMouseButtonLeft
-            )
+            point = Quartz.CGPointMake(mouse.position[0], mouse.position[1])
+            event = create_mouse_event(Quartz.kCGEventLeftMouseUp, point)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
             self.mouse_down = False
             time.sleep(0.1)
@@ -123,8 +119,11 @@ class GameEnvironment(gym.Env):
         initial_y = self.game.window_y + self.game.bar_y
         
         # Move mouse and ensure it's pressed
-        pyautogui.moveTo(initial_x, initial_y)
+        point = Quartz.CGPointMake(initial_x, initial_y)
+        move_event = create_mouse_event(Quartz.kCGEventMouseMoved, point)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, move_event)
         time.sleep(0.2)
+        
         self._press_mouse()
         self.last_bar_x = initial_x
         
@@ -307,7 +306,7 @@ class GameEnvironment(gym.Env):
                 action_scaled = float(action[0]) * max_movement
                 
                 # Get current bar position
-                current_x = self.last_bar_x if self.last_bar_x is not None else pyautogui.position()[0]
+                current_x = self.last_bar_x if self.last_bar_x is not None else mouse.position[0]
                 new_x = current_x + action_scaled
 
                 # Define the minimum and maximum X positions
@@ -319,7 +318,15 @@ class GameEnvironment(gym.Env):
 
                 # Move the mouse while maintaining Y position
                 try:
-                    pyautogui.moveTo(target_x, self.game.window_y + self.game.bar_y, _pause=False)
+                    point = Quartz.CGPointMake(target_x, self.game.window_y + self.game.bar_y)
+                    # Create and post a mouse moved event
+                    move_event = create_mouse_event(Quartz.kCGEventMouseMoved, point)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, move_event)
+                    
+                    # Create and post a dragged event to maintain the press
+                    drag_event = create_mouse_event(Quartz.kCGEventLeftMouseDragged, point)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag_event)
+                    
                     self.last_bar_x = target_x
                 except Exception as e:
                     print(f"Error moving bar: {e}")
