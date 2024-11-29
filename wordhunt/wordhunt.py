@@ -12,6 +12,7 @@ import pytesseract
 from typing import List, Tuple, Set
 import os
 import subprocess
+import keyboard
 from Quartz import (
     CGEventCreateMouseEvent,
     CGEventPost,
@@ -282,6 +283,21 @@ class WordHuntSolver:
             "mon": 1
         }
         print(f"Capture monitor: {self.monitor}")
+
+        # Add a stop flag
+        self.stop_flag = False
+        
+        # Initialize keyboard listener in a separate thread
+        keyboard.on_press(self.on_press)
+    
+    def on_press(self, key):
+        """Handle keyboard events."""
+        try:
+            if key.char.lower() == 'q':
+                print("\nStopping solver...")
+                self.stop_flag = True
+        except AttributeError:
+            pass  # Special key pressed, ignore it
 
     def detect_game_board(self, img: np.ndarray) -> Tuple[dict, np.ndarray]:
         """Detect the game board and calculate accurate board bounds."""
@@ -613,13 +629,15 @@ class WordHuntSolver:
             return
         
         try:
-            screen_width, screen_height = pyautogui.size()
+            screen_height = pyautogui.size()[1]
             points = []
             
-            # Calculate board scaling - make board take up 80% of window width
-            board_width = self.board_bounds['right'] - self.board_bounds['left']
+            # Calculate board area within window
             board_height = self.board_bounds['bottom'] - self.board_bounds['top']
-            scale_factor = (self.window_width * 0.8) / board_width
+            
+            # Move the board down by adjusting the starting position
+            board_top = self.window_y + int(self.window_height * 0.145)  # lower number = lower y offset
+            board_space = self.window_height * 0.35  # Decreased from 0.4 to 0.35 for more compact board
             
             for grid_pos in path:
                 i, j = grid_pos
@@ -628,19 +646,21 @@ class WordHuntSolver:
                 norm_x = (j + 0.5) / self.GRID_SIZE
                 norm_y = (i + 0.5) / self.GRID_SIZE
                 
-                # Convert to window space
-                window_space_x = self.window_x + (self.window_width * 0.1) + (norm_x * self.window_width * 0.8)
-                window_space_y = self.window_y + (self.window_height * 0.45) + (norm_y * self.window_height * 0.4)
+                # Calculate actual screen coordinates
+                board_width = self.window_width * 0.8  # Board takes up 80% of window width
+                board_x_offset = self.window_width * 0.1  # 10% margin on each side
                 
-                # Keep coordinates within window bounds
-                window_space_x = max(self.window_x, min(self.window_x + self.window_width, window_space_x))
-                window_space_y = max(self.window_y, min(self.window_y + self.window_height, window_space_y))
+                # Calculate X position
+                screen_x = self.window_x + board_x_offset + (norm_x * board_width)
                 
-                # Convert to Quartz coordinate system (flip Y)
-                quartz_y = screen_height - window_space_y
+                # Calculate Y position with adjusted vertical spacing
+                y_pos = board_top + (norm_y * board_space)
                 
-                print(f"Grid pos {i},{j} -> Window pos ({window_space_x}, {window_space_y}) -> Quartz pos ({window_space_x}, {quartz_y})")
-                points.append((window_space_x, quartz_y))
+                # Convert to Quartz coordinate system
+                quartz_y = screen_height - y_pos
+                
+                print(f"Grid pos {i},{j} -> Window pos ({screen_x:.1f}, {y_pos:.1f}) -> Quartz pos ({screen_x:.1f}, {quartz_y:.1f})")
+                points.append((screen_x, quartz_y))
             
             # Create event source
             source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
@@ -668,8 +688,6 @@ class WordHuntSolver:
             
         except Exception as e:
             print(f"Error swiping word {word}: {e}")
-            traceback.print_exc()
-
 
     def solve(self):
         """Main solving loop."""
@@ -703,21 +721,29 @@ class WordHuntSolver:
         
         # Execute swipes for each word
         for word in words:
+            if self.stop_flag:
+                print("Solver stopped by user (Q pressed)")
+                break
+                
             print(f"Swiping word: {word}")
             self.swipe_word(word)
             time.sleep(0.1)  # Adjust as needed
 
     def __del__(self):
+        # Stop the keyboard listener
+        if hasattr(self, 'listener'):
+            self.listener.stop()
         cv2.destroyAllWindows()
 
 def main():
     print("\nWord Hunt Solver")
     print("1. Open the Word Hunt game")
     print("2. Press Enter to position the window")
+    print("\nPress Q at any time to stop the solver")
     input()
     
     try:
-        # Move window to corner using the improved window positioning
+        # Move window to corner
         print("\nMoving iPhone window to corner...")
         window_info = move_iphone_mirror_to_corner()
         if not window_info:
