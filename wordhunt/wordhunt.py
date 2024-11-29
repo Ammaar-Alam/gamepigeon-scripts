@@ -33,6 +33,17 @@ class LetterCNN(nn.Module):
         self.fc1 = nn.Linear(64 * 5 * 5, 128)
         self.fc2 = nn.Linear(128, 26)  # 26 letters
         self.dropout = nn.Dropout(0.5)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.max_pool2d(x, 2)
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, 2)
+        x = x.view(-1, 64 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1)
         
     def forward(self, x):
         x = F.relu(self.conv1(x))
@@ -125,6 +136,22 @@ class WordHuntSolver:
             "mon": 1
         }
         print(f"Capture monitor: {self.monitor}")
+        
+        # Initialize CNN model
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = LetterCNN().to(self.device)
+        
+        # Load trained weights
+        try:
+            self.model.load_state_dict(torch.load('letter_recognition_model.pth'))
+            self.model.eval()
+            print("Loaded trained model successfully")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            raise Exception("Could not load trained model!")
+        
+        # Letter mapping
+        self.idx_to_letter = {i: chr(i + 65).lower() for i in range(26)}
         
         # Game board dimensions (4x4 grid)
         self.GRID_SIZE = 4
@@ -317,7 +344,7 @@ class WordHuntSolver:
         return resized
 
     def process_image(self, img: np.ndarray) -> List[List[str]]:
-        """Process the captured image using CNN."""
+        """Process the captured image using trained CNN."""
         if img is None or img.size == 0:
             print("Error: Empty image provided to process_image")
             return [['' for _ in range(self.GRID_SIZE)] for _ in range(self.GRID_SIZE)]
@@ -327,8 +354,14 @@ class WordHuntSolver:
         cell_size_h = self.board_bounds['cell_size_h']
         debug_img = img.copy()
         
-        # Letter mapping
-        idx_to_letter = {i: chr(i + 65) for i in range(26)}  # A-Z
+        # Define transforms
+        transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Grayscale(),
+            transforms.Resize((28, 28)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
+        ])
         
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
@@ -344,20 +377,30 @@ class WordHuntSolver:
                 if cell_img.size == 0 or cell_img.shape[0] == 0 or cell_img.shape[1] == 0:
                     continue
                 
-                # Preprocess for CNN
-                tensor = preprocess_for_cnn(cell_img)
-                tensor = tensor.to(self.device)
+                # Preprocess and get prediction
+                try:
+                    # Preprocess cell image
+                    tensor = transform(cell_img)
+                    tensor = tensor.unsqueeze(0)  # Add batch dimension
+                    tensor = tensor.to(self.device)
+                    
+                    # Get prediction
+                    with torch.no_grad():
+                        output = self.model(tensor)
+                        pred_idx = output.argmax(dim=1).item()
+                        confidence = torch.exp(output.max()).item()
+                        
+                        letter = self.idx_to_letter[pred_idx]
+                        
+                        if confidence > 0.5:  # Confidence threshold
+                            letters[i][j] = letter
+                            print(f"Detected letter at {i},{j}: {letter.upper()} (confidence: {confidence:.2f})")
+                        else:
+                            print(f"Low confidence detection at {i},{j}: {letter.upper()} ({confidence:.2f})")
                 
-                # Get prediction
-                with torch.no_grad():
-                    output = self.model(tensor)
-                    pred_idx = output.argmax(dim=1).item()
-                    letter = idx_to_letter[pred_idx]
-                    conf = torch.exp(output.max()).item()
-                
-                if conf > 0.5:  # Confidence threshold
-                    letters[i][j] = letter.lower()
-                    print(f"Detected letter at {i},{j}: {letter} (confidence: {conf:.2f})")
+                except Exception as e:
+                    print(f"Error processing cell {i},{j}: {e}")
+                    continue
                 
                 # Debug visualization
                 cv2.rectangle(
@@ -378,6 +421,7 @@ class WordHuntSolver:
                         2
                     )
         
+        # Show debug view
         cv2.imshow("Debug View", debug_img)
         cv2.waitKey(1)
         

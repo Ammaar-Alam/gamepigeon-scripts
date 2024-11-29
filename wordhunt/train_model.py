@@ -1,10 +1,41 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
 from tqdm import tqdm
-from create_dataset import LetterDataset
+import os
+from PIL import Image
+
+class LetterDataset(Dataset):
+    def __init__(self, root_dir, transform=None):
+        self.root_dir = root_dir
+        self.transform = transform
+        self.samples = []
+        
+        # Map letters to indices (A=0, B=1, etc.)
+        self.letter_to_idx = {chr(i + 65): i for i in range(26)}
+        
+        # Load all images and labels
+        for letter in self.letter_to_idx.keys():
+            letter_dir = os.path.join(root_dir, letter)
+            if os.path.exists(letter_dir):
+                for img_name in os.listdir(letter_dir):
+                    if img_name.endswith('.png'):
+                        img_path = os.path.join(letter_dir, img_name)
+                        self.samples.append((img_path, self.letter_to_idx[letter]))
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img_path, label = self.samples[idx]
+        image = Image.open(img_path).convert('L')  # Convert to grayscale
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        return image, label
 
 class LetterCNN(nn.Module):
     def __init__(self):
@@ -85,10 +116,23 @@ def main():
     # Load datasets
     dataset = LetterDataset("letter_dataset", transform=transform)
     
+    # Print dataset statistics
+    print(f"Total samples in dataset: {len(dataset)}")
+    letter_counts = {}
+    for _, label in dataset.samples:
+        letter = chr(label + 65)
+        letter_counts[letter] = letter_counts.get(letter, 0) + 1
+    print("\nSamples per letter:")
+    for letter, count in sorted(letter_counts.items()):
+        print(f"{letter}: {count}")
+    
     # Split into train and validation sets
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+    
+    print(f"\nTraining samples: {len(train_dataset)}")
+    print(f"Validation samples: {len(val_dataset)}")
     
     # Create data loaders
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
