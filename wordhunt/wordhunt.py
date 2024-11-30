@@ -735,6 +735,7 @@ class WordHuntSolver:
         words.sort(key=lambda x: (-len(x), x))
         
         # Execute swipes for each word
+        #time.sleep(0.5) # so top word doesn't get skipped // never that didn't fix it :)
         for word in words:
             if self.stop_flag:
                 print("Solver stopped by user (Q pressed)")
