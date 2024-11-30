@@ -8,8 +8,6 @@ import signal
 import sys
 import os
 from datetime import datetime
-from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import EvalCallback
 
 def signal_handler(sig, frame):
     """Handle Ctrl+C gracefully."""
@@ -46,7 +44,7 @@ def compute_gae(rewards, values, dones, next_value, gamma=0.99, lam=0.95):
 def collect_rollouts(env, agent, num_steps=2048):
     """Collect a batch of simulated experiences."""
     rollouts = defaultdict(list)
-    observation, _ = env.reset()  # Initial reset
+    observation, _ = env.reset()
     
     episode_rewards = []
     current_episode_reward = 0
@@ -79,7 +77,7 @@ def collect_rollouts(env, agent, num_steps=2048):
             steps_taken += 1
             
             if done:
-                total_hits += env.hits  # Get hits from environment
+                total_hits += env.hits
                 print(f"\n[Episode {num_episodes + 1}]")
                 print(f"Length: {episode_length}")
                 print(f"Reward: {current_episode_reward:.2f}")
@@ -107,7 +105,9 @@ def collect_rollouts(env, agent, num_steps=2048):
         rollouts['rewards'],
         rollouts['values'],
         rollouts['dones'],
-        next_value
+        next_value,
+        gamma=0.99,
+        lam=0.97  # Slightly increased lambda for better advantage estimation
     )
     
     rollouts['advantages'] = advantages
@@ -125,22 +125,26 @@ def train():
         # Create environment and agent
         env = GameEnvironment()
         agent = PPOAgent(
-            state_dim=(84, 84, 1),  # Screen dimensions
-            action_dim=1,  # Bar position
-            lr=3e-4,
+            state_dim=(84, 84, 1),
+            action_dim=1,
+            lr=2e-4,  # Slightly lower learning rate
             gamma=0.99,
-            epsilon=0.2
+            epsilon=0.2,
+            c1=1.0,    # Value loss coefficient
+            c2=0.01    # Entropy coefficient
         )
         
         # Training parameters
         num_epochs = 1000
         steps_per_epoch = 2048
-        save_freq = 5  # Save more frequently
+        save_freq = 5
+        eval_freq = 10  # Evaluate every 10 epochs
         
         # Training metrics
         best_mean_reward = float('-inf')
         best_total_hits = 0
         episode_rewards_history = []
+        moving_avg_reward = None
         
         # Training loop
         for epoch in range(num_epochs):
@@ -161,29 +165,26 @@ def train():
                 mean_reward = np.mean(episode_rewards)
                 std_reward = np.std(episode_rewards)
                 
+                # Update moving average
+                if moving_avg_reward is None:
+                    moving_avg_reward = mean_reward
+                else:
+                    moving_avg_reward = 0.9 * moving_avg_reward + 0.1 * mean_reward
+                
                 # Print training statistics
                 print(f"\nTraining Stats:")
                 print(f"Episodes completed: {num_episodes}")
                 print(f"Total hits: {total_hits}")
                 print(f"Mean reward: {mean_reward:.2f} ± {std_reward:.2f}")
+                print(f"Moving avg reward: {moving_avg_reward:.2f}")
                 print(f"Policy loss: {policy_loss:.4f}")
                 print(f"Value loss: {value_loss:.4f}")
                 print(f"Entropy: {entropy:.4f}")
                 print(f"Time elapsed: {time.time() - start_time:.2f}s")
                 
-                # Save best model based on both reward and hits
-                save_model = False
-                if mean_reward > best_mean_reward:
-                    best_mean_reward = mean_reward
-                    save_model = True
-                    print(f"New best reward: {best_mean_reward:.2f}")
-                
-                if total_hits > best_total_hits:
-                    best_total_hits = total_hits
-                    save_model = True
-                    print(f"New best hits: {best_total_hits}")
-                
-                if save_model:
+                # Save best model based on moving average reward
+                if moving_avg_reward > best_mean_reward:
+                    best_mean_reward = moving_avg_reward
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     model_path = f"models/ppo_model_best_{timestamp}.pt"
                     agent.save(model_path)
@@ -199,12 +200,6 @@ def train():
             except Exception as e:
                 print(f"Error during epoch: {str(e)}")
                 continue
-                
-            # Save after each epoch
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_path = f"models/ppo_model_epoch_{epoch+1}_{timestamp}.pt"
-            agent.save(model_path)
-            print(f"Checkpoint saved: {model_path}")
                 
     except Exception as e:
         print(f"Training error: {str(e)}")
@@ -230,6 +225,5 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
     finally:
-        # Ensure environment is closed properly
         if 'env' in globals():
             env.close()

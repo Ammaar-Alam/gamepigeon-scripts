@@ -6,10 +6,11 @@ from gymnasium import spaces
 import pyautogui
 import subprocess
 import os
-from instagram_game import InstagramGame, find_iphone_mirror_window, move_iphone_mirror_to_corner, focus_iphone_window
+from instagram_game import InstagramGame, find_iphone_mirror_window, move_iphone_mirror_to_corner, focus_iphone_window, create_mouse_event
 import pytesseract
 import uuid
 from pynput.mouse import Button, Controller
+import Quartz
 
 mouse = Controller()
 
@@ -30,10 +31,10 @@ class GameEnvironment(gym.Env):
         # Initialize the base game
         self.game = InstagramGame()
         
-        # Define action space: Small relative movements
+        # Define action space: Relative movements (-1 to 1)
         self.action_space = spaces.Box(
-            low=-5, 
-            high=5,
+            low=-1, 
+            high=1,
             shape=(1,),
             dtype=np.float32
         )
@@ -52,9 +53,36 @@ class GameEnvironment(gym.Env):
         self.first_start = True
         self.last_score = 0
         self.hits = 0
+        self.last_bar_x = None
         
-        # Start the game
-        self.start_game()
+    def _press_mouse(self):
+        """Press and hold left mouse button using Quartz."""
+        try:
+            point = Quartz.CGPointMake(mouse.position[0], mouse.position[1])
+            event = create_mouse_event(Quartz.kCGEventLeftMouseDown, point)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+            
+            # Create and post a dragged event to maintain the press
+            drag_event = create_mouse_event(Quartz.kCGEventLeftMouseDragged, point)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag_event)
+            
+            self.mouse_down = True
+            time.sleep(0.1)
+            print("Mouse button held down with Quartz")
+        except Exception as e:
+            print(f"Error holding mouse down: {e}")
+            
+    def _release_mouse(self):
+        """Release left mouse button using Quartz."""
+        try:
+            point = Quartz.CGPointMake(mouse.position[0], mouse.position[1])
+            event = create_mouse_event(Quartz.kCGEventLeftMouseUp, point)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+            self.mouse_down = False
+            time.sleep(0.1)
+            print("Mouse button released with Quartz")
+        except Exception as e:
+            print(f"Error releasing mouse: {e}")
         
     def start_game(self):
         """Initialize game state."""
@@ -78,8 +106,7 @@ class GameEnvironment(gym.Env):
         print("\nGame starting...")
         
         # Release mouse first
-        pyautogui.mouseUp()
-        self.mouse_down = False
+        self._release_mouse()
         time.sleep(0.2)
         
         # Click play and initialize
@@ -92,16 +119,13 @@ class GameEnvironment(gym.Env):
         initial_y = self.game.window_y + self.game.bar_y
         
         # Move mouse and ensure it's pressed
-        pyautogui.moveTo(initial_x, initial_y)
+        point = Quartz.CGPointMake(initial_x, initial_y)
+        move_event = create_mouse_event(Quartz.kCGEventMouseMoved, point)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, move_event)
         time.sleep(0.2)
-        # Use pynput to hold down the mouse button
-        try:
-            mouse.press(Button.left)
-            self.mouse_down = True
-            time.sleep(0.2)
-            print("Mouse button held down with pynput")
-        except Exception as e:
-            print(f"Error holding mouse down: {e}")
+        
+        self._press_mouse()
+        self.last_bar_x = initial_x
         
         self.first_start = False
         self.last_score = 0
@@ -217,13 +241,7 @@ class GameEnvironment(gym.Env):
         
         # Release mouse if it was held down
         if self.mouse_down:
-            try:
-                mouse.release(Button.left)
-                self.mouse_down = False
-                time.sleep(0.1)
-                print("Mouse button released with pynput")
-            except Exception as e:
-                print(f"Error releasing mouse button: {e}")
+            self._release_mouse()
         
         # Restart game and verify it started
         max_attempts = 3
@@ -265,13 +283,7 @@ class GameEnvironment(gym.Env):
         
         # Ensure mouse is held down
         if not self.mouse_down:
-            try:
-                mouse.press(Button.left)
-                self.mouse_down = True
-                time.sleep(0.1)
-                print("Mouse button held down with pynput")
-            except Exception as e:
-                print(f"Error holding mouse down: {e}")
+            self._press_mouse()
         
         # Get current screenshot
         screenshot = self.game.sct.grab(self.game.monitor)
@@ -284,36 +296,38 @@ class GameEnvironment(gym.Env):
         done = self.detect_game_over(screenshot)
         if done:
             if self.mouse_down:
-                mouse.release(Button.left)
-                self.mouse_down = False
-                time.sleep(0.1)
-                print("Mouse button released (game over)")
+                self._release_mouse()
         else:
             # Get emoji position and move bar
             emoji_x = self.game.detect_emoji(screenshot)
             if emoji_x is not None:
-                # Relative movement
-                action_scaled = float(action[0])
-                current_mouse_x, _ = pyautogui.position()
-                new_mouse_x = current_mouse_x + action_scaled
+                # Scale action from [-1, 1] to actual pixel movement
+                max_movement = 20  # Maximum pixels to move per step
+                action_scaled = float(action[0]) * max_movement
+                
+                # Get current bar position
+                current_x = self.last_bar_x if self.last_bar_x is not None else mouse.position[0]
+                new_x = current_x + action_scaled
 
                 # Define the minimum and maximum X positions
                 min_x = self.game.window_x + 20
                 max_x = self.game.window_x + self.game.WINDOW_WIDTH - 20
 
-                # Clip the new_mouse_x within the game window boundaries
-                target_x = max(min_x, min(new_mouse_x, max_x))
+                # Clip the new_x within the game window boundaries
+                target_x = max(min_x, min(new_x, max_x))
 
-                # Set screen_x directly to target_x
-                screen_x = target_x
-                screen_y = self.game.window_y + self.game.bar_y
-
-                # Print debug statements
-                print(f"Moving bar to screen coordinates: ({screen_x}, {screen_y})")
-
+                # Move the mouse while maintaining Y position
                 try:
-                    # Move the mouse while holding button
-                    pyautogui.moveTo(screen_x, screen_y, _pause=False)
+                    point = Quartz.CGPointMake(target_x, self.game.window_y + self.game.bar_y)
+                    # Create and post a mouse moved event
+                    move_event = create_mouse_event(Quartz.kCGEventMouseMoved, point)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, move_event)
+                    
+                    # Create and post a dragged event to maintain the press
+                    drag_event = create_mouse_event(Quartz.kCGEventLeftMouseDragged, point)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, drag_event)
+                    
+                    self.last_bar_x = target_x
                 except Exception as e:
                     print(f"Error moving bar: {e}")
             else:
@@ -351,9 +365,7 @@ class GameEnvironment(gym.Env):
         if self.episode_steps >= self.max_steps:
             done = True
             if self.mouse_down:
-                mouse.release(Button.left)
-                self.mouse_down = False
-                print("Mouse button released (max steps)")
+                self._release_mouse()
         
         # Update hits
         self.hits = self.last_score
@@ -366,28 +378,36 @@ class GameEnvironment(gym.Env):
         
         # Reward for increasing score
         if score_increased:
-            reward += 1.0
-            print(f"Reward +1.0 (Score increased to {self.last_score})")
+            reward += 10.0  # Increased reward for successful hits
+            print(f"Reward +10.0 (Score increased to {self.last_score})")
         
         # Reward for aligning bar with emoji
-        if emoji_x is not None:
-            bar_x = pyautogui.position()[0] - self.game.window_x
-            alignment = -abs(bar_x - emoji_x) / self.game.WINDOW_WIDTH
-            reward += alignment  # Negative distance (closer is better)
+        if emoji_x is not None and self.last_bar_x is not None:
+            # Calculate normalized distance between bar and emoji
+            max_distance = self.game.WINDOW_WIDTH
+            distance = abs(self.last_bar_x - (self.game.window_x + emoji_x))
+            normalized_distance = distance / max_distance
+            
+            # Exponential reward based on proximity
+            proximity_reward = np.exp(-5 * normalized_distance) - 0.5
+            reward += proximity_reward
+            
+            # Additional reward for perfect alignment
+            if distance < 10:
+                reward += 1.0
         
         # Penalty for losing
         if done:
-            penalty = -10.0 if self.last_score > 0 else -20.0
+            base_penalty = -20.0
+            score_factor = max(0, min(self.last_score, 10)) / 10.0  # Scale based on score (up to 10)
+            penalty = base_penalty * (1 - score_factor)  # Reduce penalty based on score
             reward += penalty
-            print(f"Penalty {penalty} (Game Over)")
+            print(f"Penalty {penalty:.1f} (Game Over)")
             
         return reward
         
     def close(self):
         """Clean up resources."""
         if self.mouse_down:
-            mouse.release(Button.left)
-            self.mouse_down = False
-            time.sleep(0.1)
-            print("Mouse button released (cleanup)")
+            self._release_mouse()
         self.game.running = False
