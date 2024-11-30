@@ -597,14 +597,29 @@ class WordHuntSolver:
             if index == len(target):
                 return True
             
-            # Check all 8 directions
-            directions = [(-1,-1), (-1,0), (-1,1), (0,-1), (0,1), (1,-1), (1,0), (1,1)]
+            # Check all 8 directions (adjusted for top-down coordinate system)
+            # In this system:
+            # - Moving up means decreasing x (going to earlier rows)
+            # - Moving down means increasing x (going to later rows)
+            # - Moving left means decreasing y
+            # - Moving right means increasing y
+            directions = [
+                (-1,-1),  # up-left
+                (-1,0),   # up
+                (-1,1),   # up-right
+                (0,-1),   # left
+                (0,1),    # right
+                (1,-1),   # down-left
+                (1,0),    # down
+                (1,1)     # down-right
+            ]
+            
             for dx, dy in directions:
                 new_x, new_y = x + dx, y + dy
                 if (0 <= new_x < self.GRID_SIZE and 
                     0 <= new_y < self.GRID_SIZE and 
                     (new_x, new_y) not in visited and
-                    self.letters[new_x][new_y] == target[index]):
+                    self.letters[new_x][new_y].lower() == target[index].lower()):
                     visited.add((new_x, new_y))
                     path.append((new_x, new_y))
                     if dfs(new_x, new_y, visited, target, index + 1, path):
@@ -614,13 +629,15 @@ class WordHuntSolver:
             return False
         
         word = word.lower()
+        # Search for starting letter
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
-                if self.letters[i][j] == word[0]:
+                if self.letters[i][j].lower() == word[0]:
                     path = [(i, j)]
                     visited = {(i, j)}
                     if dfs(i, j, visited, word, 1, path):
-                        return path
+                        # Reverse the vertical coordinates to match game board layout
+                        return [(self.GRID_SIZE - 1 - x, y) for x, y in path]
         return []
 
     def swipe_word(self, word: str):
@@ -638,8 +655,10 @@ class WordHuntSolver:
             board_height = self.board_bounds['bottom'] - self.board_bounds['top']
             
             # Move the board down by adjusting the starting position
-            board_top = self.window_y + int(self.window_height * 0.25)  # lower number = lower y offset
-            board_space = self.window_height * 0.25  # Decreased from 0.4 to 0.35 for more compact board
+            board_top = self.window_y + int(self.window_height * 0.25)  # Adjust vertical position
+            board_space = self.window_height * 0.25  # Vertical spacing between cells
+            board_width = self.window_width * 0.6  # Board takes up 60% of window width
+            board_x_offset = self.window_width * 0.2  # 20% margin on each side
             
             for grid_pos in path:
                 i, j = grid_pos
@@ -649,13 +668,7 @@ class WordHuntSolver:
                 norm_y = (i + 0.5) / self.GRID_SIZE
                 
                 # Calculate actual screen coordinates
-                board_width = self.window_width * 0.6 # Board takes up 80% of window width
-                board_x_offset = self.window_width * 0.2  # 10% margin on each side
-                
-                # Calculate X position
                 screen_x = self.window_x + board_x_offset + (norm_x * board_width)
-                
-                # Calculate Y position with adjusted vertical spacing
                 y_pos = board_top + (norm_y * board_space)
                 
                 # Convert to Quartz coordinate system
@@ -789,6 +802,52 @@ class WordHuntSolver:
             print("\nBoundary test stopped")
         except Exception as e:
             print(f"Error during boundary test: {e}")
+    
+    def test_cell_positions(self):
+        """Move mouse to center of each cell to visualize all possible swipe positions."""
+        try:
+            screen_height = pyautogui.size()[1]
+            
+            # Calculate board area
+            board_top = self.window_y + int(self.window_height * 0.2)
+            board_space = self.window_height * 0.35
+            board_width = self.window_width * 0.8
+            board_x_offset = self.window_width * 0.1
+            
+            print("\nMoving mouse to show all cell positions...")
+            print("Press Ctrl+C to stop")
+            
+            while True:  # Loop until interrupted
+                # Loop through each cell in grid
+                for i in range(self.GRID_SIZE):
+                    for j in range(self.GRID_SIZE):
+                        # Calculate normalized position (0-1 range)
+                        norm_x = (j + 0.5) / self.GRID_SIZE
+                        norm_y = (i + 0.5) / self.GRID_SIZE
+                        
+                        # Calculate actual screen coordinates
+                        screen_x = self.window_x + board_x_offset + (norm_x * board_width)
+                        y_pos = board_top + (norm_y * board_space)
+                        quartz_y = screen_height - y_pos
+                        
+                        # Move to position
+                        point = CGPointMake(screen_x, quartz_y)
+                        source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+                        move_event = CGEventCreateMouseEvent(source, kCGEventMouseMoved, point, kCGMouseButtonLeft)
+                        CGEventPost(kCGHIDEventTap, move_event)
+                        
+                        print(f"Cell ({i},{j}): ({screen_x:.1f}, {quartz_y:.1f})")
+                        time.sleep(0.5)  # Pause at each cell
+                        
+                print("\nCompleted one cycle, starting over...")
+                time.sleep(1)  # Pause between cycles
+                        
+        except KeyboardInterrupt:
+            print("\nCell position test stopped")
+        except Exception as e:
+            print(f"Error during cell position test: {e}")
+            import traceback
+            traceback.print_exc()
 
 def main():
     print("\nWord Hunt Solver")
@@ -796,6 +855,7 @@ def main():
     print("2. Press Enter to position the window")
     print("3. Options:")
     print("   T - Test boundaries")
+    print("   C - Test cell positions")
     print("   Enter - Start solving")
     print("   Q - Quit")
     input()
@@ -813,9 +873,11 @@ def main():
         solver = WordHuntSolver()
         
         while True:
-            choice = input("\nEnter choice (T/Enter/Q): ").lower()
+            choice = input("\nEnter choice (T/C/Enter/Q): ").lower()
             if choice == 't':
                 solver.test_bounds()
+            elif choice == 'c':
+                solver.test_cell_positions()
             elif choice == 'q':
                 break
             elif choice == '':
