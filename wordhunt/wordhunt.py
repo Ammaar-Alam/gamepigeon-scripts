@@ -721,11 +721,11 @@ class WordHuntSolver:
         for row in self.letters:
             print(" ".join(letter.upper() if letter else '_' for letter in row))
         
-        # Verify letters are correct
-        print("\nAre these letters correct? (y/n)")
-        if input().lower() != 'y':
-            print("Aborting...")
-            return
+        # Verify letters are correct (no need for this anymore since AI is hella accurate)
+        # print("\nAre these letters correct? (y/n)")
+        # if input().lower() != 'y':
+        #     print("Aborting...")
+        #     return
         
         # Find all possible words
         words = self.find_words()
