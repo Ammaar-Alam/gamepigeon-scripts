@@ -402,7 +402,7 @@ class WordHuntSolver:
     def load_dictionary(self) -> Set[str]:
         """Load a dictionary of valid English words."""
         words = set()
-        dictionary_path = "/usr/share/dict/words"
+        dictionary_path = "dictionary.txt"
         if os.path.exists(dictionary_path):
             with open(dictionary_path, 'r') as f:
                 for line in f:
