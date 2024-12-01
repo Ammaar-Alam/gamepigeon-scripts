@@ -713,6 +713,10 @@ class WordHuntSolver:
 
     def solve(self):
         """Main solving loop."""
+        # Start timer for 1:15 round limit
+        start_time = time.time()
+        round_duration = 80  # 1:15 + 5 seconds buffer to be safe
+        
         # Focus window before capture
         focus_iphone_window()
         time.sleep(0.5)
@@ -748,6 +752,12 @@ class WordHuntSolver:
         # Execute swipes for each word
         # time.sleep(0.5) # so top word doesn't get skipped // never that didn't fix it :)
         for word in words:
+            # Check if time limit reached or stop flag set
+            elapsed_time = time.time() - start_time
+            if elapsed_time >= round_duration:
+                print("\nTime limit reached (1:15)! Stopping solver...")
+                break
+            
             if self.stop_flag:
                 print("Solver stopped by user (Q pressed)")
                 break
@@ -805,7 +815,7 @@ class WordHuntSolver:
                 (
                     self.window_x + board_x_offset,
                     screen_height - (board_top + board_space)
-)
+                )
             ]
             
             print("\nMoving mouse to show game boundaries...")
