@@ -351,9 +351,10 @@ class DartsFeedbackAI:
         # In competing mode, use best throw if available
         if self.mode == "competing" and target_key in self.best_throws:
             best_throw = self.best_throws[target_key]
-            target_x = round(self.reference_throw['end_x'] + best_throw['x_adjust'])
-            target_y = round(self.reference_throw['end_y'] + best_throw['y_adjust'])
-            duration = best_throw.get('duration', 0.135)  # Use exact duration from best throw
+            # Use exact integer values from best throw
+            target_x = int(self.reference_throw['end_x'] + best_throw['x_adjust'])
+            target_y = int(self.reference_throw['end_y'] + best_throw['y_adjust'])
+            duration = best_throw['duration']  # Use exact duration from best throw
             print(f"Using best throw coordinates: ({target_x}, {target_y}) with duration {duration}")
         else:
             # Training mode logic
@@ -383,16 +384,16 @@ class DartsFeedbackAI:
             # Store the adjustments for error correction
             self.last_adjustments = {'x': x_adjust, 'y': y_adjust}
 
-            # Calculate target position
-            target_x = round(self.reference_throw['end_x'] + x_adjust)
-            target_y = round(self.reference_throw['end_y'] + y_adjust)
+            # Calculate target position using integer values
+            target_x = int(self.reference_throw['end_x'] + x_adjust)
+            target_y = int(self.reference_throw['end_y'] + y_adjust)
 
             # Use fixed duration for consistency
-            duration = 0.135
+            duration = 0.17
 
         # Ensure target positions are within screen boundaries
-        target_x = np.clip(target_x, 0, self.screen_width)
-        target_y = np.clip(target_y, 0, self.screen_height)
+        target_x = int(np.clip(target_x, 0, self.screen_width))
+        target_y = int(np.clip(target_y, 0, self.screen_height))
 
         print(f"Calculated duration: {duration:.3f} seconds")
         print(f"Target coordinates: ({target_x}, {target_y})")
@@ -432,4 +433,115 @@ class DartsFeedbackAI:
 
         return self.throw_params
 
-[Rest of the file remains the same]
+    def focus_iphone_window(self):
+        """Focus the iPhone Mirroring window."""
+        script = """
+        tell application "System Events"
+            tell application process "iPhone Mirroring"
+                set frontmost to true
+            end tell
+        end tell
+        """
+        subprocess.run(["osascript", "-e", script], capture_output=True)
+        time.sleep(0.5)
+
+    def move_iphone_mirror_to_corner(self):
+        """Move iPhone Mirroring window to bottom right corner."""
+        try:
+            script = """
+            tell application "System Events"
+                tell application process "iPhone Mirroring"
+                    set frontmost to true
+                    delay 0.5
+                    click menu item "Bottom Right" of menu 1 of menu item "Move & Resize" of menu 1 of menu bar item "Window" of menu bar 1
+                end tell
+            end tell
+            """
+            result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+            if result.stderr:
+                print(f"Warning: Could not move iPhone window: {result.stderr}")
+            if result.stdout:
+                print(f"Output: {result.stdout}")
+            time.sleep(1)
+        except Exception as e:
+            print(f"Warning: Could not move iPhone window: {e}")
+
+async def handle_client(websocket, path):
+    """Handle WebSocket connection from feedback UI."""
+    # Get mode from query parameter
+    mode = "training"  # default mode
+    if "?" in path:
+        query = path.split("?")[1]
+        if "mode=competing" in query:
+            mode = "competing"
+    
+    ai = DartsFeedbackAI(mode=mode)
+    print(f"Client connected in {mode} mode")
+
+    # Move window to corner
+    print("\nPositioning iPhone window...")
+    ai.move_iphone_mirror_to_corner()
+
+    try:
+        async for message in websocket:
+            data = json.loads(message)
+            print(f"Received message: {data}")
+
+            if data['type'] == 'throw_request':
+                # Execute throw
+                target = data['data']
+                print(f"\nAiming for {target['multiplier']} {target['number']}")
+
+                throw_params = ai.execute_throw(
+                    int(target['number']),
+                    target['multiplier']
+                )
+                print(f"Threw to: ({throw_params['end_x']}, {throw_params['end_y']})")
+
+            elif data['type'] == 'landing_data':
+                # Parse coordinates regardless of score
+                target_x, target_y = parse_coords(data['data']['target'])
+                landing_x, landing_y = parse_coords(data['data']['landing'])
+
+                if target_x is not None and landing_x is not None and ai.current_target is not None:
+                    target_number, target_multiplier = ai.current_target
+
+                    # Get hit info if available, otherwise use 0
+                    hit_number = 0
+                    hit_multiplier = 0
+                    score_text = data['data']['score']
+                    if 'x' in score_text:
+                        hit_number = int(score_text.split('x')[0].strip())
+                        hit_multiplier = int(score_text.split('=')[0].split('x')[1].strip())
+
+                    # Train on result
+                    score = ai.train(
+                        target_number,
+                        target_multiplier,
+                        hit_number,
+                        hit_multiplier,
+                        ai.throw_params,
+                        [target_x, target_y],
+                        [landing_x, landing_y]
+                    )
+
+                    print(f"AI updated based on feedback (score: {score:.2f})")
+
+    except websockets.exceptions.ConnectionClosed:
+        print("Client disconnected")
+    except Exception as e:
+        print(f"Error in connection handler: {e}")
+
+async def main():
+    server = await websockets.serve(handle_client, "localhost", 8765)
+    print("Server started on ws://localhost:8765")
+    print("\nOpen dartboard_feedback.html in your browser")
+    print("Add ?mode=competing to URL for competing mode")
+    print("Then use the controls to execute throws and provide feedback")
+    await server.wait_closed()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nStopping AI server...")

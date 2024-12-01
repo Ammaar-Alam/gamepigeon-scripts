@@ -1,1 +1,59 @@
-{"throws": {}}
+{
+  "throws": {},
+  "20_triple": [
+    {
+      "x_adjust": 0,
+      "y_adjust": -150,
+      "target_coords": [
+        175,
+        100
+      ],
+      "landing_coords": [
+        177,
+        234
+      ],
+      "score": 0.06854269173486521,
+      "distance_error": 134.01492454200763,
+      "hit_number": 3,
+      "hit_multiplier": 1,
+      "duration": 0.17,
+      "timestamp": "2024-12-01T16:55:43.349195"
+    },
+    {
+      "x_adjust": -2,
+      "y_adjust": -160,
+      "target_coords": [
+        175,
+        100
+      ],
+      "landing_coords": [
+        172,
+        24
+      ],
+      "score": 0.21845314002290636,
+      "distance_error": 76.05918747922567,
+      "hit_number": 0,
+      "hit_multiplier": 0,
+      "duration": 0.17,
+      "timestamp": "2024-12-01T16:55:48.387321"
+    },
+    {
+      "x_adjust": 2,
+      "y_adjust": -79,
+      "target_coords": [
+        175,
+        100
+      ],
+      "landing_coords": [
+        173,
+        23
+      ],
+      "score": 0.2142697823097969,
+      "distance_error": 77.02596964660685,
+      "hit_number": 0,
+      "hit_multiplier": 0,
+      "duration": 0.17,
+      "timestamp": "2024-12-01T16:55:52.807275"
+    }
+  ]
+}
