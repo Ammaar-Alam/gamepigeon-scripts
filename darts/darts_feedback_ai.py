@@ -34,6 +34,9 @@ def parse_score_text(score_text):
 
 class DartsFeedbackAI:
     def __init__(self, mode="training"):
+        self.throw_history = {}  # Store throws for each target
+        self.best_throws = {}    # Store best throws for each target
+        
         # Set AI mode (training or competing)
         self.mode = mode
         print(f"AI initialized in {mode} mode")
@@ -138,14 +141,94 @@ class DartsFeedbackAI:
         
         # Base reward based on distance (exponential falloff)
         base_score = math.exp(-distance_error / 50)
-        # Cap base score at 1.0
-        base_score = min(base_score, 1.0)
         
-        # Bonus for hitting correct multiplier and number
-        if hit_number == target_number and hit_multiplier == self.multiplier_map[target_multiplier]:
-            base_score = min(base_score * 1.5, 1.0)  # Apply bonus but cap at 1.0
+        # Reward for hitting any number
+        if hit_number > 0:
+            # Reward based on number value (higher numbers = higher reward)
+            number_reward = hit_number / 20.0  # Normalize to [0, 1]
+            
+            # Reward for multipliers
+            multiplier_reward = hit_multiplier / 3.0  # Normalize to [0, 1]
+            
+            # Combine rewards
+            throw_quality = (number_reward + multiplier_reward) / 2.0
+            
+            # If this is the exact target, give bonus
+            if hit_number == target_number and hit_multiplier == self.multiplier_map[target_multiplier]:
+                throw_quality *= 1.5
+            
+            # Final reward combines accuracy and quality
+            reward = (base_score + throw_quality) / 2.0
+        else:
+            # Miss (no number hit)
+            reward = base_score * 0.5  # Penalize misses but still reward accuracy
         
-        return base_score
+        # Store throw data for both intended target and actual hit
+        self.store_throw_data(target_number, target_multiplier, hit_number, hit_multiplier, 
+                            landing_coords, reward, self.current_throw_params)
+        
+        return reward
+
+    def store_throw_data(self, target_number, target_multiplier, hit_number, hit_multiplier, 
+                        landing_coords, reward, throw_params):
+        """Store throw data for both intended target and actual hit."""
+        # Store for intended target
+        target_key = self.get_target_key(target_number, target_multiplier)
+        if target_key not in self.throw_history:
+            self.throw_history[target_key] = []
+        
+        throw_data = {
+            'params': throw_params.copy(),
+            'landing_coords': landing_coords,
+            'hit_number': hit_number,
+            'hit_multiplier': hit_multiplier,
+            'reward': reward,  # Make sure reward is included
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # First add the new throw
+        self.throw_history[target_key].append(throw_data)
+        
+        # Then sort and keep best N throws
+        max_history = 20
+        if len(self.throw_history[target_key]) > 0:  # Only sort if there are throws
+            self.throw_history[target_key] = sorted(
+                self.throw_history[target_key],
+                key=lambda t: t.get('reward', 0),  # Use get() with default value
+                reverse=True
+            )[:max_history]
+        
+        # Update best throw for intended target if better
+        if target_key not in self.best_throws or reward > self.best_throws[target_key].get('reward', 0):
+            self.best_throws[target_key] = throw_data
+            print(f"New best throw for {target_key}! Reward: {reward:.2f}")
+        
+        # If we hit a different number, store for that target too
+        if hit_number > 0 and (hit_number != target_number or hit_multiplier != self.multiplier_map[target_multiplier]):
+            hit_key = self.get_target_key(hit_number, 'single' if hit_multiplier == 1 else 
+                                        'double' if hit_multiplier == 2 else 'triple')
+            
+            if hit_key not in self.throw_history:
+                self.throw_history[hit_key] = []
+            
+            # Add to history for the hit target
+            self.throw_history[hit_key].append(throw_data)
+            
+            # Sort and keep best N throws for hit target
+            if len(self.throw_history[hit_key]) > 0:  # Only sort if there are throws
+                self.throw_history[hit_key] = sorted(
+                    self.throw_history[hit_key],
+                    key=lambda t: t.get('reward', 0),  # Use get() with default value
+                    reverse=True
+                )[:max_history]
+            
+            # Update best throw for hit target if better
+            if hit_key not in self.best_throws or reward > self.best_throws[hit_key].get('reward', 0):
+                self.best_throws[hit_key] = throw_data
+                print(f"New best throw for {hit_key}! (Unintended hit) Reward: {reward:.2f}")
+        
+        # Save updated history
+        self.save_history()
 
     def load_history(self):
         """Load throw history."""
@@ -154,7 +237,7 @@ class DartsFeedbackAI:
                 self.throw_history = json.load(f)
         except FileNotFoundError:
             self.throw_history = {}
-
+    
     def save_history(self):
         """Save throw history to file."""
         with open('throw_history/throws.json', 'w') as f:
@@ -163,7 +246,7 @@ class DartsFeedbackAI:
     def get_target_key(self, number, multiplier):
         """Convert number and multiplier to consistent target key format."""
         return f"{number}_{multiplier}"
-
+    
     def execute_throw(self, target_number, target_multiplier):
         """Execute throw using PPO agent."""
         self.current_target = (target_number, target_multiplier)
@@ -264,7 +347,7 @@ class DartsFeedbackAI:
 
         # In competing mode, use best throw if available
         if self.mode == "competing" and target_key in self.best_throws:
-            throw_params = self.best_throws[target_key]
+            throw_params = self.best_throws[target_key]['params']
             print(f"Using best throw for {target_key}")
         else:
             # Get state and action from PPO agent
