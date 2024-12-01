@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 import pytesseract
-from typing import List, Tuple, Set
+from typing import List, Tuple, Set, Dict
 import os
 import subprocess
 import keyboard
@@ -31,6 +31,25 @@ from Quartz import (
 
 # Import additional required Quartz modules
 import Quartz
+
+class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_word = False
+        self.word = None
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+    
+    def insert(self, word: str):
+        node = self.root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = TrieNode()
+            node = node.children[char]
+        node.is_word = True
+        node.word = word
 
 def create_mouse_event(type, point, source=None):
     """Create a mouse event with proper source state and pressure."""
@@ -115,17 +134,6 @@ class LetterCNN(nn.Module):
         self.fc2 = nn.Linear(128, 26)  # 26 letters
         self.dropout = nn.Dropout(0.5)
 
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.max_pool2d(x, 2)
-        x = F.relu(self.conv2(x))
-        x = F.max_pool2d(x, 2)
-        x = x.view(-1, 64 * 5 * 5)
-        x = F.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return F.log_softmax(x, dim=1)
-        
     def forward(self, x):
         x = F.relu(self.conv1(x))
         x = F.max_pool2d(x, 2)
@@ -251,8 +259,8 @@ class WordHuntSolver:
         # Create event source for mouse control
         self.event_source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
         
-        # Load dictionary
-        self.dictionary = self.load_dictionary()
+        # Load dictionary and build trie
+        self.dictionary, self.trie = self.load_dictionary()
         
         # Configure PyAutoGUI
         pyautogui.FAILSAFE = True
@@ -398,10 +406,10 @@ class WordHuntSolver:
         
         print(f"Board bounds: {self.board_bounds}")
         return self.board_bounds, board_img
-
-    def load_dictionary(self) -> Set[str]:
-        """Load a dictionary of valid English words."""
+    def load_dictionary(self) -> Tuple[Set[str], Trie]:
+        """Load a dictionary of valid English words and build a trie."""
         words = set()
+        trie = Trie()
         dictionary_path = "dictionary.txt"
         if os.path.exists(dictionary_path):
             with open(dictionary_path, 'r') as f:
@@ -409,7 +417,8 @@ class WordHuntSolver:
                     word = line.strip().lower()
                     if len(word) >= 3:  # Word Hunt requires words of 3+ letters
                         words.add(word)
-        return words
+                        trie.insert(word)
+        return words, trie
 
     def capture_board(self) -> np.ndarray:
         """Capture the game board using mss."""
@@ -559,16 +568,13 @@ class WordHuntSolver:
         return letters
 
     def find_words(self) -> List[str]:
-        """Find all valid words on the board using DFS."""
+        """Find all valid words on the board using optimized DFS with trie."""
         def is_valid_pos(x: int, y: int) -> bool:
             return 0 <= x < self.GRID_SIZE and 0 <= y < self.GRID_SIZE
         
-        def dfs(x: int, y: int, visited: set, current_word: str, words: set):
-            if len(current_word) >= 3 and current_word.lower() in self.dictionary:
-                words.add(current_word)
-            
-            if len(current_word) > self.GRID_SIZE ** 2:
-                return  # Prevent excessively long words
+        def dfs(x: int, y: int, visited: set, node: TrieNode, words: set):
+            if node.is_word:
+                words.add(node.word)
             
             # Check all 8 directions
             directions = [(-1,-1), (-1,0), (-1,1), (0,-1), (0,1), (1,-1), (1,0), (1,1)]
@@ -576,29 +582,30 @@ class WordHuntSolver:
                 new_x, new_y = x + dx, y + dy
                 if (is_valid_pos(new_x, new_y) and 
                     (new_x, new_y) not in visited):
-                    visited.add((new_x, new_y))
-                    dfs(new_x, new_y, visited, 
-                        current_word + self.letters[new_x][new_y], 
-                        words)
-                    visited.remove((new_x, new_y))
+                    letter = self.letters[new_x][new_y]
+                    if letter in node.children:
+                        visited.add((new_x, new_y))
+                        dfs(new_x, new_y, visited, node.children[letter], words)
+                        visited.remove((new_x, new_y))
         
         found_words = set()
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
                 if self.letters[i][j]:  # Only start from cells with letters
-                    visited = {(i, j)}
-                    dfs(i, j, visited, self.letters[i][j], found_words)
+                    letter = self.letters[i][j]
+                    if letter in self.trie.root.children:
+                        visited = {(i, j)}
+                        dfs(i, j, visited, self.trie.root.children[letter], found_words)
         
         return sorted(list(found_words), key=lambda x: (-len(x), x))
 
     def find_word_path(self, word: str) -> List[Tuple[int, int]]:
-        """Find the sequence of grid positions that spell out the word."""
+        """Find the path of coordinates that spell out the given word."""
         def dfs(x: int, y: int, visited: set, target: str, index: int, path: list) -> bool:
+            """Helper function to find path using DFS."""
             if index == len(target):
                 return True
-            
-            # Check all 8 directions (adjusted for top-down coordinate system)
-            # In this system:
+        # In this system:
             # - Moving up means decreasing x (going to earlier rows)
             # - Moving down means increasing x (going to later rows)
             # - Moving left means decreasing y
@@ -798,7 +805,7 @@ class WordHuntSolver:
                 (
                     self.window_x + board_x_offset,
                     screen_height - (board_top + board_space)
-                )
+)
             ]
             
             print("\nMoving mouse to show game boundaries...")
