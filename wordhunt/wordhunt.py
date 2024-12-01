@@ -734,16 +734,31 @@ class WordHuntSolver:
         # Sort words by length (longest first) and alphabetically
         words.sort(key=lambda x: (-len(x), x))
         
+        # Make sure window is still focused before swiping
+        focus_iphone_window()
+        time.sleep(0.5)  # Wait for focus
+        
         # Execute swipes for each word
-        #time.sleep(0.5) # so top word doesn't get skipped // never that didn't fix it :)
+        # time.sleep(0.5) # so top word doesn't get skipped // never that didn't fix it :)
         for word in words:
             if self.stop_flag:
                 print("Solver stopped by user (Q pressed)")
                 break
-                
+            
             print(f"Swiping word: {word}")
+            # Verify path exists before attempting swipe
+            path = self.find_word_path(word)
+            if not path:
+                print(f"Could not find path for word: {word}")
+                continue
+                
+            # Add small delay before first swipe
+            if word == words[0]:  # If this is the first word
+                time.sleep(0.5)  # Add extra delay before first swipe
+                focus_iphone_window()  # Re-focus window before first swipe
+            
             self.swipe_word(word)
-            time.sleep(0.1)  # Adjust as needed
+            time.sleep(0.2)  # Slightly increased delay between words
 
     def __del__(self):
         # Stop the keyboard listener
