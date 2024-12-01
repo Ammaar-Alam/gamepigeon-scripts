@@ -61,7 +61,7 @@ class LetterCNN(nn.Module):
         x = self.fc2(x)
         return nn.functional.log_softmax(x, dim=1)
 
-def train_model(model, train_loader, val_loader, device, epochs=100):
+def train_model(model, train_loader, val_loader, device, epochs=100): # 100 epochs is prolly unnecessary, 50 is enough
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters())
     
