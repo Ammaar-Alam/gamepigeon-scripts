@@ -1,0 +1,308 @@
+{
+  "20_triple": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1622,
+      "end_y": 418,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      175,
+      101
+    ],
+    "hit_number": 20,
+    "hit_multiplier": 3,
+    "reward": 1.0,
+    "timestamp": "2024-12-01T18:52:02.930248"
+  },
+  "25_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1625,
+      "end_y": 508,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      176,
+      167
+    ],
+    "hit_number": 25,
+    "hit_multiplier": 1,
+    "reward": 0.35112561504091916,
+    "timestamp": "2024-12-01T18:34:08.809189"
+  },
+  "11_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1589,
+      "end_y": 525,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      146,
+      173
+    ],
+    "hit_number": 11,
+    "hit_multiplier": 1,
+    "reward": 0.19591846770329144,
+    "timestamp": "2024-12-01T18:33:14.875394"
+  },
+  "12_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1566,
+      "end_y": 394,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      144,
+      124
+    ],
+    "hit_number": 12,
+    "hit_multiplier": 1,
+    "reward": 0.456534123550423,
+    "timestamp": "2024-12-01T18:46:09.565427"
+  },
+  "20_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1624,
+      "end_y": 390,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      176,
+      111
+    ],
+    "hit_number": 20,
+    "hit_multiplier": 1,
+    "reward": 0.8017910667389275,
+    "timestamp": "2024-12-01T18:44:57.692532"
+  },
+  "9_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1590,
+      "end_y": 485,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      150,
+      156
+    ],
+    "hit_number": 9,
+    "hit_multiplier": 1,
+    "reward": 0.29330570605500844,
+    "timestamp": "2024-12-01T18:54:33.059510"
+  },
+  "14_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1576,
+      "end_y": 516,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      140,
+      162
+    ],
+    "hit_number": 14,
+    "hit_multiplier": 1,
+    "reward": 0.2623141619418077,
+    "timestamp": "2024-12-01T18:37:55.911428"
+  },
+  "13_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1653,
+      "end_y": 501,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      204,
+      162
+    ],
+    "hit_number": 13,
+    "hit_multiplier": 1,
+    "reward": 0.2543761513276318,
+    "timestamp": "2024-12-01T18:54:42.847534"
+  },
+  "16_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1589,
+      "end_y": 555,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      148,
+      199
+    ],
+    "hit_number": 16,
+    "hit_multiplier": 1,
+    "reward": 0.24931870555860747,
+    "timestamp": "2024-12-01T18:37:35.887575"
+  },
+  "19_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1603,
+      "end_y": 569,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      165,
+      205
+    ],
+    "hit_number": 19,
+    "hit_multiplier": 1,
+    "reward": 0.2746463155545041,
+    "timestamp": "2024-12-01T18:38:21.225310"
+  },
+  "8_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1557,
+      "end_y": 558,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      133,
+      186
+    ],
+    "hit_number": 8,
+    "hit_multiplier": 1,
+    "reward": 0.15304772904042158,
+    "timestamp": "2024-12-01T18:34:46.886574"
+  },
+  "5_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1582,
+      "end_y": 394,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      151,
+      87
+    ],
+    "hit_number": 5,
+    "hit_multiplier": 1,
+    "reward": 0.5793237739873546,
+    "timestamp": "2024-12-01T18:51:56.595368"
+  },
+  "18_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1678,
+      "end_y": 459,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      209,
+      123
+    ],
+    "hit_number": 18,
+    "hit_multiplier": 1,
+    "reward": 0.4400024296862149,
+    "timestamp": "2024-12-01T18:46:04.280798"
+  },
+  "1_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1643,
+      "end_y": 415,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      191,
+      118
+    ],
+    "hit_number": 1,
+    "hit_multiplier": 1,
+    "reward": 0.6177547263996869,
+    "timestamp": "2024-12-01T18:45:13.760520"
+  },
+  "4_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1679,
+      "end_y": 458,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      214,
+      142
+    ],
+    "hit_number": 4,
+    "hit_multiplier": 1,
+    "reward": 0.3178110070051393,
+    "timestamp": "2024-12-01T18:45:20.848366"
+  },
+  "9_triple": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1520,
+      "end_y": 474,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      113,
+      131
+    ],
+    "hit_number": 9,
+    "hit_multiplier": 3,
+    "reward": 0.24998305434184181,
+    "timestamp": "2024-12-01T18:49:08.464221"
+  },
+  "25_double": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1620,
+      "end_y": 498,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      174,
+      174
+    ],
+    "hit_number": 25,
+    "hit_multiplier": 2,
+    "reward": 0.2276069300165171,
+    "timestamp": "2024-12-01T18:50:30.671508"
+  },
+  "10_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1652,
+      "end_y": 543,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      206,
+      186
+    ],
+    "hit_number": 10,
+    "hit_multiplier": 1,
+    "reward": 0.16068126870302096,
+    "timestamp": "2024-12-01T18:51:13.079436"
+  }
+}

@@ -57,20 +57,31 @@ class DartsFeedbackAI:
             'duration': 0.17  # Fixed duration that works
         }
 
-        # Initialize PPO agent
-        # State: [target_x, target_y, target_multiplier, prev_landing_x, prev_landing_y, prev_score]
-        # Action: [x_adjust, y_adjust]  # Only learn adjustments from reference throw
-        self.agent = DartsPPO(state_dim=6, action_dim=2)
-        
-        # Load best model if in competing mode
-        if mode == "competing" and os.path.exists('models/best_model.pth'):
-            self.agent.load_model('models/best_model.pth')
+        # Initialize PPO agent only in training mode
+        if mode == "training":
+            # State: [target_x, target_y, target_multiplier, prev_landing_x, prev_landing_y, prev_score]
+            # Action: [x_adjust, y_adjust]  # Only learn adjustments from reference throw
+            self.agent = DartsPPO(state_dim=6, action_dim=2)
+            
+            # Training stats
+            self.episode_rewards = []
+            self.training_step = 0
+            self.best_reward = -float('inf')
+            
+            # Try to load best model if exists
+            try:
+                if os.path.exists('models/best_model.pth'):
+                    print("Loading existing model...")
+                    self.agent.load_model('models/best_model.pth')
+                else:
+                    print("No existing model found, starting fresh")
+            except Exception as e:
+                print(f"Error loading model: {e}, starting fresh")
 
         # Initialize state
         self.last_throw = None
         self.current_target = None
         self.last_target_coords = None
-        self.best_throws = {}  # Store best throws per target
         self.current_throw_params = None
         self.last_state = None
         self.last_action = None
@@ -91,8 +102,9 @@ class DartsFeedbackAI:
             if not os.path.exists(dir_path):
                 os.makedirs(dir_path)
 
-        # Load throw history
+        # Load throw history and best throws
         self.load_history()
+        self.load_best_throws()
 
         # Training stats
         self.episode_rewards = []
@@ -139,35 +151,45 @@ class DartsFeedbackAI:
         error_y = target_coords[1] - landing_coords[1]
         distance_error = math.sqrt(error_x**2 + error_y**2)
         
-        # Base reward based on distance (exponential falloff)
-        base_score = math.exp(-distance_error / 50)
+        # Base reward based on distance (sharper falloff)
+        base_score = math.exp(-distance_error / 30)  # Sharper distance penalty
         
         # Reward for hitting any number
         if hit_number > 0:
-            # Reward based on number value (higher numbers = higher reward)
-            number_reward = hit_number / 20.0  # Normalize to [0, 1]
-            
-            # Reward for multipliers
-            multiplier_reward = hit_multiplier / 3.0  # Normalize to [0, 1]
-            
-            # Combine rewards
-            throw_quality = (number_reward + multiplier_reward) / 2.0
-            
-            # If this is the exact target, give bonus
+            # Simple reward based on how close we are to target
             if hit_number == target_number and hit_multiplier == self.multiplier_map[target_multiplier]:
-                throw_quality *= 1.5
-            
-            # Final reward combines accuracy and quality
-            reward = (base_score + throw_quality) / 2.0
+                # Perfect hit - give high reward
+                reward = 1.0
+            else:
+                # Partial reward based on distance and multiplier match
+                if hit_multiplier == self.multiplier_map[target_multiplier]:
+                    # Right multiplier but wrong number - encourage this
+                    reward = base_score * 0.8
+                else:
+                    # Wrong multiplier - less reward
+                    reward = base_score * 0.3
         else:
             # Miss (no number hit)
-            reward = base_score * 0.5  # Penalize misses but still reward accuracy
+            reward = base_score * 0.1  # Very low reward for misses
         
         # Store throw data for both intended target and actual hit
         self.store_throw_data(target_number, target_multiplier, hit_number, hit_multiplier, 
                             landing_coords, reward, self.current_throw_params)
         
         return reward
+
+    def load_best_throws(self):
+        """Load best throws from file."""
+        try:
+            with open('throw_history/best_throws.json', 'r') as f:
+                self.best_throws = json.load(f)
+        except FileNotFoundError:
+            self.best_throws = {}
+    
+    def save_best_throws(self):
+        """Save best throws to file."""
+        with open('throw_history/best_throws.json', 'w') as f:
+            json.dump(self.best_throws, f, indent=2)
 
     def store_throw_data(self, target_number, target_multiplier, hit_number, hit_multiplier, 
                         landing_coords, reward, throw_params):
@@ -182,7 +204,7 @@ class DartsFeedbackAI:
             'landing_coords': landing_coords,
             'hit_number': hit_number,
             'hit_multiplier': hit_multiplier,
-            'reward': reward,  # Make sure reward is included
+            'reward': reward,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -191,10 +213,10 @@ class DartsFeedbackAI:
         
         # Then sort and keep best N throws
         max_history = 20
-        if len(self.throw_history[target_key]) > 0:  # Only sort if there are throws
+        if len(self.throw_history[target_key]) > 0:
             self.throw_history[target_key] = sorted(
                 self.throw_history[target_key],
-                key=lambda t: t.get('reward', 0),  # Use get() with default value
+                key=lambda t: t.get('reward', 0),
                 reverse=True
             )[:max_history]
         
@@ -202,6 +224,7 @@ class DartsFeedbackAI:
         if target_key not in self.best_throws or reward > self.best_throws[target_key].get('reward', 0):
             self.best_throws[target_key] = throw_data
             print(f"New best throw for {target_key}! Reward: {reward:.2f}")
+            self.save_best_throws()  # Save immediately when we get a new best
         
         # If we hit a different number, store for that target too
         if hit_number > 0 and (hit_number != target_number or hit_multiplier != self.multiplier_map[target_multiplier]):
@@ -215,10 +238,10 @@ class DartsFeedbackAI:
             self.throw_history[hit_key].append(throw_data)
             
             # Sort and keep best N throws for hit target
-            if len(self.throw_history[hit_key]) > 0:  # Only sort if there are throws
+            if len(self.throw_history[hit_key]) > 0:
                 self.throw_history[hit_key] = sorted(
                     self.throw_history[hit_key],
-                    key=lambda t: t.get('reward', 0),  # Use get() with default value
+                    key=lambda t: t.get('reward', 0),
                     reverse=True
                 )[:max_history]
             
@@ -226,6 +249,7 @@ class DartsFeedbackAI:
             if hit_key not in self.best_throws or reward > self.best_throws[hit_key].get('reward', 0):
                 self.best_throws[hit_key] = throw_data
                 print(f"New best throw for {hit_key}! (Unintended hit) Reward: {reward:.2f}")
+                self.save_best_throws()  # Save immediately when we get a new best
         
         # Save updated history
         self.save_history()
@@ -248,7 +272,7 @@ class DartsFeedbackAI:
         return f"{number}_{multiplier}"
     
     def execute_throw(self, target_number, target_multiplier):
-        """Execute throw using PPO agent."""
+        """Execute throw using best known parameters or PPO agent."""
         self.current_target = (target_number, target_multiplier)
         target_key = self.get_target_key(target_number, target_multiplier)
 
@@ -345,14 +369,20 @@ class DartsFeedbackAI:
         # Get target coordinates
         target_coords = dartboard_coords.get(target_key, [175, 175])
 
-        # In competing mode, use best throw if available
-        if self.mode == "competing" and target_key in self.best_throws:
-            throw_params = self.best_throws[target_key]['params']
-            print(f"Using best throw for {target_key}")
+        # In competing mode, strictly use best throw parameters
+        if self.mode == "competing":
+            if target_key in self.best_throws:
+                # Use exact parameters from best throw
+                throw_params = self.best_throws[target_key]['params'].copy()
+                print(f"Using best throw for {target_key}")
+            else:
+                # If no best throw, use reference throw
+                throw_params = self.reference_throw.copy()
+                print(f"No best throw found for {target_key}, using reference")
         else:
-            # Get state and action from PPO agent
+            # Training mode - use PPO agent with exploration
             state = self.get_state(target_coords, self.multiplier_map[target_multiplier])
-            action, log_prob = self.agent.select_action(state)
+            action, log_prob = self.agent.select_action(state, deterministic=False)  # Allow exploration in training
             throw_params = self.action_to_throw_params(action)
 
             # Store for training update
@@ -375,7 +405,7 @@ class DartsFeedbackAI:
             )
             time.sleep(0.1)
 
-            # Perform throw - use simple dragTo like original code
+            # Perform throw
             pyautogui.dragTo(
                 throw_params['end_x'],
                 throw_params['end_y'],
@@ -428,20 +458,24 @@ class DartsFeedbackAI:
         self.episode_rewards.append(reward)
         self.training_step += 1
 
-        # Train the agent every N steps
-        if self.training_step % 5 == 0:  # Train more frequently
-            print("\nTraining PPO agent...")
-            self.agent.train(batch_size=min(16, len(self.agent.experiences)), epochs=5)
-            
-            # Calculate average reward
-            avg_reward = sum(self.episode_rewards[-5:]) / len(self.episode_rewards[-5:])
-            print(f"Average reward over last 5 throws: {avg_reward:.2f}")
-            
-            # Save if improved
-            if avg_reward > self.best_reward:
+        # Train after every throw with more epochs
+        print("\nTraining PPO agent...")
+        # Use more experiences for training
+        batch_size = min(32, len(self.agent.experiences))  # Increased from 16
+        self.agent.train(batch_size=batch_size, epochs=15)  # Increased epochs
+        
+        # Calculate average reward over last 5 throws
+        window_size = min(5, len(self.episode_rewards))  # Increased from 3
+        avg_reward = sum(self.episode_rewards[-window_size:]) / window_size
+        print(f"Average reward over last {window_size} throws: {avg_reward:.2f}")
+        
+        # Save if significantly improved (within 98% of best)
+        if avg_reward > self.best_reward * 0.98:  # More selective saving
+            if avg_reward > self.best_reward:  # Only update best if truly better
                 self.best_reward = avg_reward
-                self.agent.save_model('models/best_model.pth')
-                print(f"New best model saved with average reward: {avg_reward:.2f}")
+                print(f"New best reward: {avg_reward:.2f}")
+            self.agent.save_model('models/best_model.pth')
+            print(f"New model saved with average reward: {avg_reward:.2f}")
 
         # Update state
         self.last_throw = landing_coords
@@ -504,6 +538,7 @@ async def handle_client(websocket, path):
                 )
                 print(f"Throw executed with parameters: {throw_params}")
 
+            # Only process landing data in training mode
             elif data['type'] == 'landing_data' and mode == "training":
                 target_x, target_y = parse_coords(data['data']['target'])
                 landing_x, landing_y = parse_coords(data['data']['landing'])
