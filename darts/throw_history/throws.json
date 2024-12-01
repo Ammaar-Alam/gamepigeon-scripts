@@ -54,6 +54,111 @@
       "hit_multiplier": 0,
       "duration": 0.17,
       "timestamp": "2024-12-01T16:55:52.807275"
+    },
+    {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1620,
+      "end_y": 819,
+      "duration": 0.135,
+      "curve": "easeOutQuad",
+      "target_coords": [
+        175,
+        100
+      ],
+      "landing_coords": [
+        175,
+        297
+      ],
+      "score": 0.01944821474538539,
+      "distance_error": 197.0,
+      "hit_number": 3,
+      "hit_multiplier": 1,
+      "timestamp": "2024-12-01T17:08:59.081752"
+    },
+    {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1780,
+      "end_y": 1106,
+      "duration": 0.155,
+      "curve": "easeOutQuad",
+      "target_coords": [
+        175,
+        100
+      ],
+      "landing_coords": [
+        203,
+        342
+      ],
+      "score": 0.007655821119990046,
+      "distance_error": 243.61444948935193,
+      "hit_number": 0,
+      "hit_multiplier": 0,
+      "timestamp": "2024-12-01T17:09:09.619657"
+    },
+    {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1780,
+      "end_y": 1129,
+      "duration": 0.155,
+      "curve": "easeOutQuad",
+      "target_coords": [
+        175,
+        100
+      ],
+      "landing_coords": [
+        203,
+        347
+      ],
+      "score": 0.006931773594427115,
+      "distance_error": 248.58197842965205,
+      "hit_number": 0,
+      "hit_multiplier": 0,
+      "timestamp": "2024-12-01T17:09:41.947038"
+    },
+    {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1780,
+      "end_y": 1129,
+      "duration": 0.155,
+      "curve": "easeOutQuad",
+      "target_coords": [
+        175,
+        100
+      ],
+      "landing_coords": [
+        202,
+        347
+      ],
+      "score": 0.006947130889666867,
+      "distance_error": 248.47132631352054,
+      "hit_number": 0,
+      "hit_multiplier": 0,
+      "timestamp": "2024-12-01T17:09:47.848033"
+    },
+    {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1780,
+      "end_y": 1129,
+      "duration": 0.155,
+      "curve": "easeOutQuad",
+      "target_coords": [
+        175,
+        100
+      ],
+      "landing_coords": [
+        198,
+        347
+      ],
+      "score": 0.007003321248882502,
+      "distance_error": 248.06853891616325,
+      "hit_number": 0,
+      "hit_multiplier": 0,
+      "timestamp": "2024-12-01T17:09:53.053347"
     }
   ]
 }
