@@ -209,6 +209,16 @@
             <button id="confirm" class="button" disabled>Confirm Landing (Enter)</button>
             <button id="reset" class="button">Reset (R)</button>
         </div>
+
+        <div class="throw-feedback">
+            <label>
+                <input type="checkbox" id="throw-failed" />
+                Throw Failed (dart didn't fly)
+            </label>
+            <div class="throw-feedback-hint">
+                Check this if the throw animation didn't work properly
+            </div>
+        </div>
         
         <div id="stats">
             <h3>Last Throw</h3>
@@ -216,12 +226,14 @@
             <div class="coordinate">Landing: <span id="landing-coord">-</span></div>
             <div class="coordinate">Difference: <span id="diff-coord">-</span></div>
             <div class="coordinate">Score: <span id="score">-</span></div>
+            <div class="coordinate">Status: <span id="throw-status">-</span></div>
         </div>
         
         <div id="throw-history">
             <h3>Throw History</h3>
         </div>
     </div>
+
 
     <script>
         class DartboardUI {
@@ -568,44 +580,54 @@
                     }
                 }));
             }
-            
-            confirmLanding() {
-                if (!this.landingPos) return;
-                
-                const targetCoord = document.getElementById('target-coord').textContent;
-                const landingCoord = document.getElementById('landing-coord').textContent;
-                const diffCoord = document.getElementById('diff-coord').textContent;
-                const score = document.getElementById('score').textContent;
-                
-                this.ws.send(JSON.stringify({
-                    type: 'landing_data',
-                    data: {
-                        target: targetCoord,
-                        landing: landingCoord,
-                        difference: diffCoord,
-                        score: score
-                    }
-                }));
-                
-                const historyEntry = document.createElement('div');
-                historyEntry.className = 'history-entry';
-                historyEntry.textContent = `${this.targetMultiplier.value} ${this.targetNumber.value} → ${score}`;
-                document.getElementById('throw-history').prepend(historyEntry);
-                
-                this.reset();
-                this.throwButton.disabled = false;
+
+    confirmLanding() {
+        if (!this.landingPos && !document.getElementById('throw-failed').checked) return;
+        
+        const targetCoord = document.getElementById('target-coord').textContent;
+        const throwFailed = document.getElementById('throw-failed').checked;
+        
+        // If throw failed, use target coordinates as landing (AI will handle this as failed throw)
+        const landingCoord = throwFailed ? targetCoord : document.getElementById('landing-coord').textContent;
+        const diffCoord = throwFailed ? "(0, 0)" : document.getElementById('diff-coord').textContent;
+        const score = throwFailed ? "0" : document.getElementById('score').textContent;
+        
+        this.ws.send(JSON.stringify({
+            type: 'landing_data',
+            data: {
+                target: targetCoord,
+                landing: landingCoord,
+                difference: diffCoord,
+                score: score,
+                throw_failed: throwFailed
             }
-            
-            reset() {
-                this.landingPos = null;
-                this.landingMarker.style.display = 'none';
-                this.confirmButton.disabled = true;
-                document.getElementById('landing-coord').textContent = '-';
-                document.getElementById('diff-coord').textContent = '-';
-                document.getElementById('score').textContent = '-';
-            }
-            
-            showLandingMarker(x, y) {
+        }));
+        
+        const historyEntry = document.createElement('div');
+        historyEntry.className = 'history-entry';
+        const status = throwFailed ? ' (Failed Throw)' : '';
+        historyEntry.textContent = `${this.targetMultiplier.value} ${this.targetNumber.value} → ${score}${status}`;
+        document.getElementById('throw-history').prepend(historyEntry);
+        
+        // Update throw status
+        document.getElementById('throw-status').textContent = throwFailed ? 'Failed (dart did not fly)' : 'Success';
+        
+        this.reset();
+        this.throwButton.disabled = false;
+    }
+    
+    reset() {
+        this.landingPos = null;
+        this.landingMarker.style.display = 'none';
+        this.confirmButton.disabled = true;
+        document.getElementById('landing-coord').textContent = '-';
+        document.getElementById('diff-coord').textContent = '-';
+        document.getElementById('score').textContent = '-';
+        document.getElementById('throw-failed').checked = false;
+        document.getElementById('throw-status').textContent = '-';
+    }
+
+        showLandingMarker(x, y) {
                 this.landingMarker.style.display = 'block';
                 this.landingMarker.style.left = (x + this.canvas.offsetLeft) + 'px';
                 this.landingMarker.style.top = (y + this.canvas.offsetTop) + 'px';
@@ -625,5 +647,38 @@
         // Create dartboard UI instance
         const dartboard = new DartboardUI();
     </script>
-</body>
-</html>
+
+<style>
+    /* Previous styles unchanged */
+    
+    .throw-feedback {
+        margin: 10px 0;
+        padding: 10px;
+        background: rgba(255, 0, 0, 0.1);
+        border-radius: 5px;
+    }
+    
+    .throw-feedback label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    
+    .throw-feedback input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+    }
+
+    .throw-feedback-hint {
+        margin-top: 5px;
+        font-size: 12px;
+        color: #aaa;
+        margin-left: 30px;
+    }
+
+    #throw-status {
+        font-weight: bold;
+    }
+</style>

@@ -9,6 +9,7 @@ import subprocess
 import math
 from datetime import datetime
 import re
+from ppo_agent import DartsPPO
 
 # Prevent mouse from going to screen corners
 pyautogui.FAILSAFE = True
@@ -33,6 +34,9 @@ def parse_score_text(score_text):
 
 class DartsFeedbackAI:
     def __init__(self, mode="training"):
+        self.throw_history = {}  # Store throws for each target
+        self.best_throws = {}    # Store best throws for each target
+        
         # Set AI mode (training or competing)
         self.mode = mode
         print(f"AI initialized in {mode} mode")
@@ -50,20 +54,27 @@ class DartsFeedbackAI:
             'start_y': 969,
             'end_x': 1620,
             'end_y': 469,  # Lower end_y for better accuracy
-            'duration': 0.135  # Faster duration for better response
+            'duration': 0.17  # Fixed duration that works
         }
 
-        # Load throw history first
-        self.throw_history = {}
-        self.best_throws = {}  # Store best throws per target
-        self.load_history()
+        # Initialize PPO agent
+        # State: [target_x, target_y, target_multiplier, prev_landing_x, prev_landing_y, prev_score]
+        # Action: [x_adjust, y_adjust]  # Only learn adjustments from reference throw
+        self.agent = DartsPPO(state_dim=6, action_dim=2)
+        
+        # Load best model if in competing mode
+        if mode == "competing" and os.path.exists('models/best_model.pth'):
+            self.agent.load_model('models/best_model.pth')
 
         # Initialize state
         self.last_throw = None
         self.current_target = None
         self.last_target_coords = None
-        self.last_adjustments = {'x': 0.0, 'y': 0.0}
-        self.throw_params = None
+        self.best_throws = {}  # Store best throws per target
+        self.current_throw_params = None
+        self.last_state = None
+        self.last_action = None
+        self.last_log_prob = None
 
         # Screen to board coordinate scaling
         self.x_scale = 2.0
@@ -80,185 +91,168 @@ class DartsFeedbackAI:
             if not os.path.exists(dir_path):
                 os.makedirs(dir_path)
 
-    def load_history(self):
-        """Load throw history and identify best throws."""
-        try:
-            with open('throw_history/throws.json', 'r') as f:
-                self.throw_history = json.load(f)
-                
-            # Identify best throws for each target
-            for target_key, throws in self.throw_history.items():
-                if throws:
-                    # Parse target info
-                    target_number = int(target_key.split('_')[0])
-                    target_multiplier = self.multiplier_map[target_key.split('_')[1]]
-                    
-                    # Find throws that hit the exact target with high accuracy
-                    exact_hits = []
-                    for throw in throws:
-                        # Try to get hit info from score text if not in throw data
-                        if 'hit_number' not in throw and 'score' in throw:
-                            score_text = throw.get('score', '')
-                            if isinstance(score_text, str) and 'x' in score_text:
-                                hit_number, hit_multiplier = parse_score_text(score_text)
-                                if hit_number is not None:
-                                    throw['hit_number'] = hit_number
-                                    throw['hit_multiplier'] = hit_multiplier
-                        
-                        # Check if it's an exact hit
-                        if (throw.get('hit_number', 0) == target_number and 
-                            throw.get('hit_multiplier', 0) == target_multiplier and
-                            throw.get('score', 0) > 0.7):
-                            exact_hits.append(throw)
-                    
-                    if exact_hits:
-                        # Get the most accurate exact hit
-                        best_throw = max(exact_hits, key=lambda t: t.get('score', 0))
-                        # Round coordinates to integers for consistency
-                        best_throw['x_adjust'] = round(best_throw['x_adjust'])
-                        best_throw['y_adjust'] = round(best_throw['y_adjust'])
-                        self.best_throws[target_key] = best_throw
-                        print(f"Loaded best throw for {target_key} with score {min(best_throw.get('score', 0), 1.0):.2f}")
+        # Load throw history
+        self.load_history()
 
-        except FileNotFoundError:
-            self.throw_history = {}
+        # Training stats
+        self.episode_rewards = []
+        self.training_step = 0
+        self.best_reward = -float('inf')
 
-    def save_history(self):
-        """Save throw history to file."""
-        print("Saving throw history...")
-        with open('throw_history/throws.json', 'w') as f:
-            json.dump(self.throw_history, f, indent=2)
-        print("Throw history saved")
+    def get_state(self, target_coords, target_multiplier):
+        """Convert current situation to state vector for PPO."""
+        # Default previous landing to target coords if no previous throw
+        prev_landing = self.last_throw if self.last_throw else target_coords
+        prev_score = 0.0 if not hasattr(self, 'last_score') else self.last_score
+        
+        return np.array([
+            target_coords[0] / 350.0,  # Normalize coordinates
+            target_coords[1] / 350.0,
+            target_multiplier / 3.0,    # Normalize multiplier
+            prev_landing[0] / 350.0,
+            prev_landing[1] / 350.0,
+            prev_score
+        ], dtype=np.float32)
 
-    def get_target_key(self, number, multiplier):
-        """Convert number and multiplier to consistent target key format."""
-        return f"{number}_{multiplier}"
+    def action_to_throw_params(self, action):
+        """Convert PPO action to throw parameters."""
+        # Scale actions to adjustments from reference throw
+        x_adjust = np.clip(action[0] * 100, -160, 160)  # Max adjustment of 160 pixels
+        y_adjust = np.clip(action[1] * 100, -160, 160)
 
-    def predict_adjustments(self, target_number, target_multiplier, target_coords):
-        """Predict throw adjustments based on target position."""
-        target_key = self.get_target_key(target_number, target_multiplier)
+        # Calculate end positions relative to reference throw
+        end_x = int(self.reference_throw['end_x'] + x_adjust)
+        end_y = int(self.reference_throw['end_y'] + y_adjust)
 
-        # In competing mode, strictly use best known throw if available
-        if self.mode == "competing" and target_key in self.best_throws:
-            best_throw = self.best_throws[target_key]
-            print(f"Using best known throw for {target_key} with score {min(best_throw.get('score', 0), 1.0):.2f}")
-            return best_throw.get('x_adjust', 0), best_throw.get('y_adjust', 0)
+        return {
+            'start_x': self.reference_throw['start_x'],
+            'start_y': self.reference_throw['start_y'],
+            'end_x': end_x,
+            'end_y': end_y,
+            'duration': self.reference_throw['duration']  # Use fixed duration
+        }
 
-        # Training mode logic
-        # Calculate base adjustments from board coordinates to screen coordinates
-        x_diff = target_coords[0] - 175  # Difference from board center x
-        y_diff = target_coords[1] - 175  # Difference from board center y
-
-        # Scale the differences to screen coordinates
-        x_adjust = x_diff * self.x_scale
-        y_adjust = y_diff * self.y_scale
-
-        print(f"Initial adjustments - x: {x_adjust:.1f}, y: {y_adjust:.1f}")
-
-        # If we have landing data from last throw, apply corrections
-        if self.last_throw and self.last_adjustments:
-            aimed_coords_x = 175 + (self.last_adjustments['x'] / self.x_scale)
-            aimed_coords_y = 175 + (self.last_adjustments['y'] / self.y_scale)
-
-            error_x = self.last_throw[0] - aimed_coords_x
-            error_y = self.last_throw[1] - aimed_coords_y
-
-            # Apply scaled corrections
-            x_adjust -= error_x * self.x_scale * 0.5
-            y_adjust -= error_y * self.y_scale * 0.5
-
-            print(f"Error adjustments - x: {-error_x * self.x_scale * 0.5:.1f}, y: {-error_y * self.y_scale * 0.5:.1f}")
-
-        # Print debugging info
-        print(f"Target coordinates: {target_coords}")
-        print(f"Final adjustments: ({x_adjust:.1f}, {y_adjust:.1f})")
-
-        # Clamp adjustments
-        max_adjust = self.MAX_ADJUST * 0.8  # 160
-        x_adjust = np.clip(x_adjust, -max_adjust, max_adjust)
-        y_adjust = np.clip(y_adjust, -max_adjust, max_adjust)
-
-        # Round adjustments to integers for consistency
-        x_adjust = round(x_adjust)
-        y_adjust = round(y_adjust)
-
-        return x_adjust, y_adjust
-
-    def train(self, target_number, target_multiplier, hit_number, hit_multiplier, throw_params, target_coords, landing_coords):
-        """Train on throw result with improved scoring."""
+    def calculate_reward(self, target_coords, landing_coords, target_multiplier, hit_multiplier, hit_number, target_number):
+        """Calculate reward for the throw."""
         # Calculate distance error
         error_x = target_coords[0] - landing_coords[0]
         error_y = target_coords[1] - landing_coords[1]
         distance_error = math.sqrt(error_x**2 + error_y**2)
-
-        # Calculate base score based on distance (exponential falloff)
+        
+        # Base reward based on distance (exponential falloff)
         base_score = math.exp(-distance_error / 50)
-        # Cap base score at 1.0
-        base_score = min(base_score, 1.0)
+        
+        # Reward for hitting any number
+        if hit_number > 0:
+            # Reward based on number value (higher numbers = higher reward)
+            number_reward = hit_number / 20.0  # Normalize to [0, 1]
+            
+            # Reward for multipliers
+            multiplier_reward = hit_multiplier / 3.0  # Normalize to [0, 1]
+            
+            # Combine rewards
+            throw_quality = (number_reward + multiplier_reward) / 2.0
+            
+            # If this is the exact target, give bonus
+            if hit_number == target_number and hit_multiplier == self.multiplier_map[target_multiplier]:
+                throw_quality *= 1.5
+            
+            # Final reward combines accuracy and quality
+            reward = (base_score + throw_quality) / 2.0
+        else:
+            # Miss (no number hit)
+            reward = base_score * 0.5  # Penalize misses but still reward accuracy
+        
+        # Store throw data for both intended target and actual hit
+        self.store_throw_data(target_number, target_multiplier, hit_number, hit_multiplier, 
+                            landing_coords, reward, self.current_throw_params)
+        
+        return reward
 
-        # Apply bonus if we hit the exact target
-        score = base_score
-        if hit_number == target_number and hit_multiplier == self.multiplier_map[target_multiplier]:
-            score = min(base_score * 1.5, 1.0)  # Apply bonus but cap at 1.0
-            print(f"Bonus applied for hitting exact target! New score: {score:.2f}")
-
-        # Store throw data
+    def store_throw_data(self, target_number, target_multiplier, hit_number, hit_multiplier, 
+                        landing_coords, reward, throw_params):
+        """Store throw data for both intended target and actual hit."""
+        # Store for intended target
         target_key = self.get_target_key(target_number, target_multiplier)
         if target_key not in self.throw_history:
             self.throw_history[target_key] = []
-
-        # Calculate adjustments made for this throw
-        x_adjust = round(throw_params['end_x'] - self.reference_throw['end_x'])
-        y_adjust = round(throw_params['end_y'] - self.reference_throw['end_y'])
-
+        
         throw_data = {
-            'x_adjust': x_adjust,
-            'y_adjust': y_adjust,
-            'target_coords': target_coords,
+            'params': throw_params.copy(),
             'landing_coords': landing_coords,
-            'score': score,
-            'distance_error': distance_error,
             'hit_number': hit_number,
             'hit_multiplier': hit_multiplier,
-            'duration': throw_params['duration'],  # Store duration for exact reproduction
+            'reward': reward,  # Make sure reward is included
             'timestamp': datetime.now().isoformat()
         }
-
+        
+        # First add the new throw
         self.throw_history[target_key].append(throw_data)
-        print(f"Added throw data for {target_key}: {throw_data}")
-        print(f"Adjustments made: x={x_adjust:.1f}, y={y_adjust:.1f}")
-        print(f"Distance error: {distance_error:.1f} pixels")
-
-        # Update best throw if this was better and hit the exact target
-        if hit_number == target_number and hit_multiplier == self.multiplier_map[target_multiplier]:
-            if target_key not in self.best_throws or score > self.best_throws[target_key].get('score', 0):
-                if score > 0.7:
-                    self.best_throws[target_key] = throw_data
-                    print(f"New best throw recorded for {target_key}!")
-
-        # Keep only last 10 throws for each target, sorted by score
-        if len(self.throw_history[target_key]) > 10:
+        
+        # Then sort and keep best N throws
+        max_history = 20
+        if len(self.throw_history[target_key]) > 0:  # Only sort if there are throws
             self.throw_history[target_key] = sorted(
                 self.throw_history[target_key],
-                key=lambda t: t.get('score', 0),
+                key=lambda t: t.get('reward', 0),  # Use get() with default value
                 reverse=True
-            )[:10]
-
+            )[:max_history]
+        
+        # Update best throw for intended target if better
+        if target_key not in self.best_throws or reward > self.best_throws[target_key].get('reward', 0):
+            self.best_throws[target_key] = throw_data
+            print(f"New best throw for {target_key}! Reward: {reward:.2f}")
+        
+        # If we hit a different number, store for that target too
+        if hit_number > 0 and (hit_number != target_number or hit_multiplier != self.multiplier_map[target_multiplier]):
+            hit_key = self.get_target_key(hit_number, 'single' if hit_multiplier == 1 else 
+                                        'double' if hit_multiplier == 2 else 'triple')
+            
+            if hit_key not in self.throw_history:
+                self.throw_history[hit_key] = []
+            
+            # Add to history for the hit target
+            self.throw_history[hit_key].append(throw_data)
+            
+            # Sort and keep best N throws for hit target
+            if len(self.throw_history[hit_key]) > 0:  # Only sort if there are throws
+                self.throw_history[hit_key] = sorted(
+                    self.throw_history[hit_key],
+                    key=lambda t: t.get('reward', 0),  # Use get() with default value
+                    reverse=True
+                )[:max_history]
+            
+            # Update best throw for hit target if better
+            if hit_key not in self.best_throws or reward > self.best_throws[hit_key].get('reward', 0):
+                self.best_throws[hit_key] = throw_data
+                print(f"New best throw for {hit_key}! (Unintended hit) Reward: {reward:.2f}")
+        
+        # Save updated history
         self.save_history()
-        self.last_throw = landing_coords
-        self.last_target_coords = target_coords  # Update after training
 
-        return score
+    def load_history(self):
+        """Load throw history."""
+        try:
+            with open('throw_history/throws.json', 'r') as f:
+                self.throw_history = json.load(f)
+        except FileNotFoundError:
+            self.throw_history = {}
+    
+    def save_history(self):
+        """Save throw history to file."""
+        with open('throw_history/throws.json', 'w') as f:
+            json.dump(self.throw_history, f, indent=2)
 
+    def get_target_key(self, number, multiplier):
+        """Convert number and multiplier to consistent target key format."""
+        return f"{number}_{multiplier}"
+    
     def execute_throw(self, target_number, target_multiplier):
-        """Execute throw with predicted adjustments."""
+        """Execute throw using PPO agent."""
         self.current_target = (target_number, target_multiplier)
-
-        # Get target coordinates
         target_key = self.get_target_key(target_number, target_multiplier)
-        target_coords = None
 
-        # Dartboard UI coordinates
+        # Get target coordinates from dartboard UI coordinates
         dartboard_coords = {
             # Top section (20)
             '20_single': [175, 69],
@@ -348,88 +342,204 @@ class DartsFeedbackAI:
             'double_bullseye': [175, 175]
         }
 
+        # Get target coordinates
+        target_coords = dartboard_coords.get(target_key, [175, 175])
+
         # In competing mode, use best throw if available
         if self.mode == "competing" and target_key in self.best_throws:
-            best_throw = self.best_throws[target_key]
-            target_x = round(self.reference_throw['end_x'] + best_throw['x_adjust'])
-            target_y = round(self.reference_throw['end_y'] + best_throw['y_adjust'])
-            duration = best_throw.get('duration', 0.135)  # Use exact duration from best throw
-            print(f"Using best throw coordinates: ({target_x}, {target_y}) with duration {duration}")
+            throw_params = self.best_throws[target_key]['params']
+            print(f"Using best throw for {target_key}")
         else:
-            # Training mode logic
-            # Prioritize dartboard UI coordinates
-            if target_key in dartboard_coords:
-                target_coords = dartboard_coords[target_key]
-                print(f"Using dartboard UI coordinates for {target_key}: {target_coords}")
-            elif target_key in self.throw_history and len(self.throw_history[target_key]) > 0:
-                best_throw = max(self.throw_history[target_key], key=lambda t: t.get('score', 0))
-                if best_throw.get('score', 0) > 0.3:
-                    target_coords = best_throw.get('target_coords')
-                    if target_coords:
-                        target_coords = tuple(target_coords)
-                        print(f"Using historical target coordinates for {target_key}: {target_coords}")
+            # Get state and action from PPO agent
+            state = self.get_state(target_coords, self.multiplier_map[target_multiplier])
+            action, log_prob = self.agent.select_action(state)
+            throw_params = self.action_to_throw_params(action)
 
-            if not target_coords:
-                target_coords = [175, 175]
-                print(f"No coordinates found for {target_key}, using default: {target_coords}")
+            # Store for training update
+            self.last_state = state
+            self.last_action = action
+            self.last_log_prob = log_prob
 
-            # Get adjustments
-            x_adjust, y_adjust = self.predict_adjustments(
-                target_number,
-                target_multiplier,
-                target_coords
-            )
-
-            # Store the adjustments for error correction
-            self.last_adjustments = {'x': x_adjust, 'y': y_adjust}
-
-            # Calculate target position
-            target_x = round(self.reference_throw['end_x'] + x_adjust)
-            target_y = round(self.reference_throw['end_y'] + y_adjust)
-
-            # Use fixed duration for consistency
-            duration = 0.135
-
-        # Ensure target positions are within screen boundaries
-        target_x = np.clip(target_x, 0, self.screen_width)
-        target_y = np.clip(target_y, 0, self.screen_height)
-
-        print(f"Calculated duration: {duration:.3f} seconds")
-        print(f"Target coordinates: ({target_x}, {target_y})")
+        print(f"Executing throw with parameters: {throw_params}")
 
         # Execute the throw
         try:
             self.focus_iphone_window()
+            time.sleep(0.5)
+
+            # Move to start position
+            pyautogui.moveTo(
+                throw_params['start_x'],
+                throw_params['start_y'],
+                duration=0.1
+            )
+            time.sleep(0.1)
+
+            # Perform throw - use simple dragTo like original code
+            pyautogui.dragTo(
+                throw_params['end_x'],
+                throw_params['end_y'],
+                duration=throw_params['duration'],
+                button='left'
+            )
+
+            self.current_throw_params = throw_params
+
         except Exception as e:
-            print(f"Warning: Could not focus iPhone window: {e}")
+            print(f"Error executing throw: {e}")
+
+        return throw_params
+
+    def train(self, target_coords, landing_coords, hit_number, hit_multiplier):
+        """Train PPO agent on throw result."""
+        if self.mode != "training":
+            return
+
+        # Check if we have all required data
+        if (self.last_state is None or 
+            self.last_action is None or 
+            self.last_log_prob is None):
+            print("Missing required training data")
+            return
+
+        # Calculate reward
+        reward = self.calculate_reward(
+            target_coords, 
+            landing_coords,
+            self.current_target[1],  # target_multiplier
+            hit_multiplier,
+            hit_number,
+            self.current_target[0]   # target_number
+        )
+
+        # Get next state
+        next_state = self.get_state(target_coords, self.multiplier_map[self.current_target[1]])
+
+        # Store experience
+        self.agent.store_experience(
+            self.last_state,
+            self.last_action,
+            reward,
+            next_state,
+            self.last_log_prob
+        )
+
+        # Update training stats
+        self.episode_rewards.append(reward)
+        self.training_step += 1
+
+        # Train the agent every N steps
+        if self.training_step % 5 == 0:  # Train more frequently
+            print("\nTraining PPO agent...")
+            self.agent.train(batch_size=min(16, len(self.agent.experiences)), epochs=5)
             
+            # Calculate average reward
+            avg_reward = sum(self.episode_rewards[-5:]) / len(self.episode_rewards[-5:])
+            print(f"Average reward over last 5 throws: {avg_reward:.2f}")
+            
+            # Save if improved
+            if avg_reward > self.best_reward:
+                self.best_reward = avg_reward
+                self.agent.save_model('models/best_model.pth')
+                print(f"New best model saved with average reward: {avg_reward:.2f}")
+
+        # Update state
+        self.last_throw = landing_coords
+        self.last_score = reward
+
+        return reward
+
+    def focus_iphone_window(self):
+        """Focus the iPhone Mirroring window."""
+        script = """
+        tell application "System Events"
+            tell application process "iPhone Mirroring"
+                set frontmost to true
+            end tell
+        end tell
+        """
+        subprocess.run(["osascript", "-e", script], capture_output=True)
         time.sleep(0.5)
 
-        print("Moving to start position...")
-        pyautogui.moveTo(
-            self.reference_throw['start_x'],
-            self.reference_throw['start_y'],
-            duration=0.1
-        )
-        time.sleep(0.1)
+    def move_iphone_mirror_to_corner(self):
+        """Move iPhone Mirroring window to bottom right corner."""
+        try:
+            script = """
+            tell application "System Events"
+                tell application process "iPhone Mirroring"
+                    set frontmost to true
+                    delay 0.5
+                    click menu item "Bottom Right" of menu 1 of menu item "Move & Resize" of menu 1 of menu bar item "Window" of menu bar 1
+                end tell
+            end tell
+            """
+            result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+            time.sleep(1)
+        except Exception as e:
+            print(f"Warning: Could not move iPhone window: {e}")
 
-        print("Performing throw...")
-        pyautogui.dragTo(
-            target_x,
-            target_y,
-            duration=duration,
-            tween=pyautogui.easeOutQuad,
-            button='left'
-        )
+async def handle_client(websocket, path):
+    """Handle WebSocket connection from feedback UI."""
+    mode = "training"
+    if "?" in path and "mode=competing" in path.split("?")[1]:
+        mode = "competing"
+    
+    ai = DartsFeedbackAI(mode=mode)
+    print(f"Client connected in {mode} mode")
 
-        self.throw_params = {
-            'start_x': self.reference_throw['start_x'],
-            'start_y': self.reference_throw['start_y'],
-            'end_x': target_x,
-            'end_y': target_y,
-            'duration': duration
-        }
+    ai.move_iphone_mirror_to_corner()
 
-        return self.throw_params
+    try:
+        async for message in websocket:
+            data = json.loads(message)
+            print(f"Received message: {data}")
 
-[Rest of the file remains the same]
+            if data['type'] == 'throw_request':
+                target = data['data']
+                print(f"\nAiming for {target['multiplier']} {target['number']}")
+
+                throw_params = ai.execute_throw(
+                    int(target['number']),
+                    target['multiplier']
+                )
+                print(f"Throw executed with parameters: {throw_params}")
+
+            elif data['type'] == 'landing_data' and mode == "training":
+                target_x, target_y = parse_coords(data['data']['target'])
+                landing_x, landing_y = parse_coords(data['data']['landing'])
+                throw_failed = data['data'].get('throw_failed', False)
+
+                if all([target_x, target_y, landing_x, landing_y]) and ai.current_target:
+                    hit_number = 0
+                    hit_multiplier = 0
+                    score_text = data['data']['score']
+                    if 'x' in score_text:
+                        hit_number, hit_multiplier = parse_score_text(score_text)
+
+                    reward = ai.train(
+                        [target_x, target_y],
+                        [landing_x, landing_y],
+                        hit_number or 0,
+                        hit_multiplier or 0
+                    )
+                    print(f"Training update completed (reward: {reward:.2f})")
+
+    except websockets.exceptions.ConnectionClosed:
+        print("Client disconnected")
+    except Exception as e:
+        print(f"Error in connection handler: {e}")
+        import traceback
+        traceback.print_exc()
+
+async def main():
+    server = await websockets.serve(handle_client, "localhost", 8765)
+    print("Server started on ws://localhost:8765")
+    print("\nOpen dartboard_feedback.html in your browser")
+    print("Add ?mode=competing to URL for competing mode")
+    await server.wait_closed()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nStopping AI server...")
