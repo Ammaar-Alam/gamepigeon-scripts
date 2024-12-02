@@ -125,9 +125,8 @@ class AnagramsSolver:
         # Save original window_y for screen capture
         self.window_y_orig = self.window_y
         
-        # Adjust window_y to match Quartz coordinate system
-        self.window_y = screen_height - (self.window_y + self.window_height)
-        print(f"Adjusted window_y: {self.window_y}")
+        # Get screen height for coordinate conversion
+        self.screen_height = screen_height
         
         # Add a stop flag
         self.stop_flag = False
@@ -182,13 +181,23 @@ class AnagramsSolver:
         grid_width = width // 6  # 6 columns
         grid_height = bottom_crop - top_crop
         
+        # Calculate board area within window (similar to WordHunt)
+        board_top = int(self.window_height * 0.65)  # Adjust vertical position for anagrams
+        board_space = self.window_height * 0.15  # Vertical spacing for single row
+        board_width = self.window_width * 0.8  # Board takes up 80% of width
+        board_x_offset = self.window_width * 0.1  # 10% margin on each side
+        
         # Calculate letter positions
         self.letter_positions = []
         for i in range(6):
-            # Calculate center of each grid cell
-            center_x = self.window_x + (i * grid_width) + (grid_width // 2)
-            center_y = self.window_y_orig + top_crop + (grid_height // 2)
-            self.letter_positions.append((center_x, center_y))
+            # Calculate normalized position (0-1 range)
+            norm_x = (i + 0.5) / 6  # 6 columns
+            
+            # Calculate actual screen coordinates
+            screen_x = self.window_x + board_x_offset + (norm_x * board_width)
+            y_pos = self.window_y + board_top + (board_space / 2)
+            
+            self.letter_positions.append((screen_x, y_pos))
             
             # Draw debug visualization
             x_start = i * grid_width
@@ -208,18 +217,16 @@ class AnagramsSolver:
                        (255, 0, 0),
                        1)
         
-        # Detect ENTER button
-        enter_top = int(height * 0.45)  # Moved up slightly
-        enter_bottom = int(height * 0.55)
-        enter_width = width // 3  # Button is about 1/3 of width
-        
         # Calculate ENTER button position
-        enter_x = self.window_x + (width // 2)  # Center horizontally
-        enter_y = self.window_y_orig + (enter_top + enter_bottom) // 2
+        enter_y = self.window_y + int(self.window_height * 0.35)  # Adjusted for anagrams
+        enter_x = self.window_x + (self.window_width // 2)  # Center horizontally
         self.enter_position = (enter_x, enter_y)
         
         # Draw ENTER button bounds
+        enter_width = width // 3
         enter_left = (width - enter_width) // 2
+        enter_top = int(height * 0.35)
+        enter_bottom = int(height * 0.45)
         cv2.rectangle(debug_img,
                      (enter_left, enter_top),
                      (enter_left + enter_width, enter_bottom),
@@ -371,15 +378,13 @@ class AnagramsSolver:
     def input_word(self, word: str):
         """Input a word by tapping letters and pressing ENTER."""
         try:
-            screen_height = pyautogui.size()[1]
-            
             # Type each letter
             for letter in word:
                 # Find position of letter
                 for i, (x, y) in enumerate(self.letter_positions):
                     if self.letters[i] == letter:
                         # Convert to Quartz coordinates
-                        quartz_y = screen_height - y
+                        quartz_y = self.screen_height - y
                         
                         # Move to letter position first
                         move_event = CGEventCreateMouseEvent(None, kCGEventMouseMoved, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
@@ -402,7 +407,7 @@ class AnagramsSolver:
             # Press ENTER
             if self.enter_position:
                 x, y = self.enter_position
-                quartz_y = screen_height - y
+                quartz_y = self.screen_height - y
                 
                 # Move to ENTER button first
                 move_event = CGEventCreateMouseEvent(None, kCGEventMouseMoved, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
@@ -442,13 +447,6 @@ class AnagramsSolver:
         
         # Add delay to keep windows open
         print("\nPress Enter to continue or Q to quit...")
-        # while True:
-        #     if keyboard.is_pressed('q'):
-        #         print("Quitting...")
-        #         return
-        #     if keyboard.is_pressed('enter'):
-        #         break
-        #     cv2.waitKey(1)
         
         # Find all possible words
         words = self.find_words(letters)
@@ -456,10 +454,6 @@ class AnagramsSolver:
         
         if len(words) == 0:
             print("\nNo words found. Press Enter to quit...")
-            # while True:
-            #     if keyboard.is_pressed('enter') or keyboard.is_pressed('q'):
-            #         break
-            #     cv2.waitKey(1)
             return
         
         # Sort words by length (longest first) then alphabetically
