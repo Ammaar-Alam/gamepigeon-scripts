@@ -431,7 +431,7 @@ class AnagramsSolver:
                     CGEventPost(kCGHIDEventTap, down_event)
                     # time.sleep(0.1)
                     CGEventPost(kCGHIDEventTap, up_event)
-                    # time.sleep(0.3)
+                    time.sleep(0.05)
 
         except Exception as e:
             print(f"Error inputting word {word}: {e}")
