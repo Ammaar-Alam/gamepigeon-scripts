@@ -40,7 +40,7 @@ class TrieNode:
 class Trie:
     def __init__(self):
         self.root = TrieNode()
-    
+
     def insert(self, word: str):
         node = self.root
         for char in word:
@@ -71,20 +71,24 @@ class LetterCNN(nn.Module):
         return F.log_softmax(x, dim=1)
 
 class AnagramsSolver:
-    def __init__(self):
+    def __init__(self, debug_mode=False, mode="click"):
+        # Add debug mode flag and interaction mode
+        self.debug_mode = debug_mode
+        self.mode = mode  # "click" or "move"
+
         # Initialize window position
         window_info = find_iphone_mirror_window()
         if not window_info:
             raise Exception("Could not find iPhone Mirror window!")
-        
+
         # Get screen dimensions
         screen_width, screen_height = pyautogui.size()
         print(f"Screen dimensions: {screen_width}x{screen_height}")
-        
+
         # Store window info
         self.window_x, self.window_y, self.window_width, self.window_height = window_info
         print(f"Window position: ({self.window_x}, {self.window_y}) {self.window_width}x{self.window_height}")
-        
+
         # Initialize screen capture
         self.sct = mss.mss()
         self.monitor = {
@@ -95,11 +99,11 @@ class AnagramsSolver:
             "mon": 1
         }
         print(f"Capture monitor: {self.monitor}")
-        
+
         # Initialize CNN model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = LetterCNN().to(self.device)
-        
+
         # Load trained weights (using the same model as WordHunt)
         try:
             self.model.load_state_dict(torch.load('/Users/alam/Documents/GitHub/gamepigeon-scripts/wordhunt/letter_recognition_model.pth'))
@@ -108,36 +112,36 @@ class AnagramsSolver:
         except Exception as e:
             print(f"Error loading model: {e}")
             raise Exception("Could not load trained model!")
-        
+
         # Letter mapping
         self.idx_to_letter = {i: chr(i + 65).lower() for i in range(26)}
-        
+
         # Create debug window
         cv2.namedWindow("Debug View", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Debug View", self.window_width, self.window_height)
-        
+
         # Load dictionary and build trie
         self.dictionary, self.trie = self.load_dictionary()
-        
+
         # Configure PyAutoGUI
         pyautogui.FAILSAFE = True
-        
+
         # Save original window_y for screen capture
         self.window_y_orig = self.window_y
-        
+
         # Get screen height for coordinate conversion
         self.screen_height = screen_height
-        
+
         # Add a stop flag
         self.stop_flag = False
-        
+
         # Initialize keyboard listener
         keyboard.on_press(self.on_press)
-        
+
         # Store letter positions and ENTER position
         self.letter_positions = []
         self.enter_position = None
-        
+
         # Store detected letters
         self.letters = []
 
@@ -178,7 +182,7 @@ class AnagramsSolver:
         cv2.waitKey(1)
         
         # Calculate grid dimensions
-        grid_width = width // 6  # 6 columns
+        grid_width = int(width * .9) // 6  # 6 columns
         grid_height = bottom_crop - top_crop
         
         # Calculate board area within window
@@ -353,11 +357,11 @@ class AnagramsSolver:
 
     def find_words(self, letters: List[str]) -> List[str]:
         """Find all possible words that can be made from the given letters."""
-        def find_words_recursive(node: TrieNode, remaining_letters: List[str], 
+        def find_words_recursive(node: TrieNode, remaining_letters: List[str],
                                current_word: str, words: Set[str]):
             if node.is_word and len(current_word) >= 3:
                 words.add(current_word)
-            
+
             # Try each remaining letter
             for i, letter in enumerate(remaining_letters):
                 if letter in node.children:
@@ -369,15 +373,15 @@ class AnagramsSolver:
                         current_word + letter,
                         words
                     )
-        
+
         found_words = set()
         find_words_recursive(self.trie.root, letters, "", found_words)
-        
+
         # Sort by length (longest first) then alphabetically
         return sorted(list(found_words), key=lambda x: (-len(x), x))
 
     def input_word(self, word: str):
-        """Input a word by tapping letters and pressing ENTER."""
+        """Input a word by either clicking letters or just moving the mouse."""
         try:
             # Type each letter
             for letter in word:
@@ -386,45 +390,49 @@ class AnagramsSolver:
                     if self.letters[i] == letter:
                         # Convert to Quartz coordinates (flip y)
                         quartz_y = self.screen_height - y
-                        
-                        # Move to letter position first
+
+                        if self.debug_mode:
+                            print(f"{'Clicking' if self.mode == 'click' else 'Moving to'} letter {letter.upper()} at ({x}, {quartz_y})")
+
+                        # Move to letter position
                         move_event = CGEventCreateMouseEvent(None, kCGEventMouseMoved, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
                         CGEventPost(kCGHIDEventTap, move_event)
-                        time.sleep(0.1)
-                        
-                        # Click letter
-                        down_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
-                        up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
-                        
-                        CGEventPost(kCGHIDEventTap, down_event)
-                        time.sleep(0.1)
-                        CGEventPost(kCGHIDEventTap, up_event)
-                        time.sleep(0.15)
+                        time.sleep(0.075)
+
+                        # Click letter if in click mode
+                        if self.mode == "click":
+                            down_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
+                            up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
+
+                            CGEventPost(kCGHIDEventTap, down_event)
+                            time.sleep(0.1)
+                            CGEventPost(kCGHIDEventTap, up_event)
                         break
-            
-            # Add slight delay before pressing ENTER
-            time.sleep(0.2)
-            
-            # Press ENTER
+
+            # Move to or click ENTER
             if self.enter_position:
                 x, y = self.enter_position
                 # Convert to Quartz coordinates (flip y)
                 quartz_y = self.screen_height - y
-                
-                # Move to ENTER button first
+
+                if self.debug_mode:
+                    print(f"{'Clicking' if self.mode == 'click' else 'Moving to'} ENTER at ({x}, {quartz_y})")
+
+                # Move to ENTER button
                 move_event = CGEventCreateMouseEvent(None, kCGEventMouseMoved, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
                 CGEventPost(kCGHIDEventTap, move_event)
-                time.sleep(0.1)
-                
-                # Click ENTER
-                down_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
-                up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
-                
-                CGEventPost(kCGHIDEventTap, down_event)
-                time.sleep(0.1)
-                CGEventPost(kCGHIDEventTap, up_event)
-                time.sleep(0.3)
-            
+                # time.sleep(0.1)
+
+                # Click ENTER if in click mode
+                if self.mode == "click":
+                    down_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
+                    up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
+
+                    CGEventPost(kCGHIDEventTap, down_event)
+                    time.sleep(0.1)
+                    CGEventPost(kCGHIDEventTap, up_event)
+                    # time.sleep(0.3)
+
         except Exception as e:
             print(f"Error inputting word {word}: {e}")
 
@@ -433,38 +441,49 @@ class AnagramsSolver:
         # Start timer for game time limit
         start_time = time.time()
         round_duration = 63  # 1:00 + 5 seconds buffer
-        
+
         # Focus window before capture
         focus_iphone_window()
         time.sleep(0.5)
-        
+
         # Capture and process the board
         print("\nCapturing board...")
         board_img = self.capture_board()
-        
+
         print("\nProcessing image...")
         letters = self.process_image(board_img)
-        
+
         print("\nDetected letters:", " ".join(letter.upper() for letter in letters))
-        
-        # Add delay to keep windows open
+
+        # Add delay to keep windows open and wait for user input
         print("\nPress Enter to continue or Q to quit...")
-        
+        # try:
+        #     while True:
+        #         if keyboard.is_pressed('q'):
+        #             print("\nQuitting...")
+        #             return
+        #         if keyboard.is_pressed('enter'):
+        #             break
+        #         time.sleep(0.1)
+        # except Exception as e:
+        #     print(f"Error waiting for input: {e}")
+        #     return
+
         # Find all possible words
         words = self.find_words(letters)
         print(f"\nFound {len(words)} possible words")
-        
+
         if len(words) == 0:
             print("\nNo words found. Press Enter to quit...")
             return
-        
+
         # Sort words by length (longest first) then alphabetically
         words.sort(key=lambda x: (-len(x), x))
-        
+
         # Make sure window is still focused
         focus_iphone_window()
         time.sleep(0.5)
-        
+
         # Input each word
         for word in words:
             # Check time limit and stop flag
@@ -472,28 +491,139 @@ class AnagramsSolver:
             if elapsed_time >= round_duration:
                 print("\nTime limit reached! Stopping solver...")
                 break
-            
+
             if self.stop_flag:
                 print("Solver stopped by user (Q pressed)")
                 break
-            
-            print(f"Inputting word: {word}")
+
+            print(f"{'Inputting' if self.mode == 'click' else 'Showing'} word: {word}")
             self.input_word(word)
-            time.sleep(0.2)
+            # time.sleep(0.2)
 
     def __del__(self):
         if hasattr(self, 'listener'):
             self.listener.stop()
         cv2.destroyAllWindows()
 
+def test_bounds():
+    """Move mouse around the border of the game area to visualize boundaries."""
+    try:
+        # Initialize window position
+        window_info = find_iphone_mirror_window()
+        if not window_info:
+            raise Exception("Could not find iPhone Mirror window!")
+
+        window_x, window_y, window_width, window_height = window_info
+        screen_height = pyautogui.size()[1]
+
+        # Calculate board area for Anagrams (adjusted percentages)
+        board_top = int(window_height * 0.075)  # Letters are near top for Anagrams 
+        board_space = window_height * 0.1  # Vertical spacing for single row
+        board_width = window_width * 0.9  # Board takes up 90% of width
+        board_x_offset = window_width * 0.05  # 5% margin on each side
+
+        # Calculate corner points (clockwise from top-left)
+        corners = [
+            # Top left
+            (window_x + board_x_offset, screen_height - (window_y + board_top)),
+            # Top right 
+            (window_x + board_x_offset + board_width, screen_height - (window_y + board_top)),
+            # Bottom right
+            (window_x + board_x_offset + board_width, screen_height - (window_y + board_top + board_space)),
+            # Bottom left
+            (window_x + board_x_offset, screen_height - (window_y + board_top + board_space))
+        ]
+
+        print("\nMoving mouse to show game boundaries...")
+        print("Press Ctrl+C to stop")
+
+        # Move to each corner and pause
+        while True:  # Loop until interrupted
+            for i, (x, y) in enumerate(corners):
+                source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+                point = CGPointMake(x, y)
+                move_event = CGEventCreateMouseEvent(source, kCGEventMouseMoved, point, kCGMouseButtonLeft)
+                CGEventPost(kCGHIDEventTap, move_event)
+                print(f"Corner {i+1}: ({x:.1f}, {y:.1f})")
+                time.sleep(1)  # Pause at each corner
+
+    except KeyboardInterrupt:
+        print("\nBoundary test stopped")
+    except Exception as e:
+        print(f"Error during boundary test: {e}")
+
+def test_letter_positions():
+    """Move mouse to each letter position and ENTER button to visualize all positions."""
+    try:
+        # Initialize window position
+        window_info = find_iphone_mirror_window()
+        if not window_info:
+            raise Exception("Could not find iPhone Mirror window!")
+
+        window_x, window_y, window_width, window_height = window_info
+        screen_height = pyautogui.size()[1]
+
+        # Calculate board area for Anagrams (adjusted percentages)
+        board_top = int(window_height * 0.075)  # Letters are near top for Anagrams
+        board_space = window_height * 0.1  # Vertical spacing for single row
+        board_width = window_width * 0.9  # Board takes up 90% of width
+        board_x_offset = window_width * 0.05  # 5% margin on each side
+
+        # Calculate ENTER button position
+        enter_y = window_y + int(window_height * 0.925)  # Near bottom of screen
+        enter_x = window_x + (window_width // 2)  # Center horizontally
+
+        print("\nMoving mouse to show letter positions and ENTER button...")
+        print("Press Ctrl+C to stop")
+
+        while True:  # Loop until interrupted
+            # Loop through each letter position (6 letters)
+            for i in range(6):
+                # Calculate normalized position (0-1 range)
+                norm_x = (i + 0.5) / 6  # 6 columns
+
+                # Calculate actual screen coordinates
+                screen_x = window_x + board_x_offset + (norm_x * board_width)
+                y_pos = window_y + board_top + board_space
+                quartz_y = screen_height - y_pos
+
+                # Move to position
+                point = CGPointMake(screen_x, quartz_y)
+                source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+                move_event = CGEventCreateMouseEvent(source, kCGEventMouseMoved, point, kCGMouseButtonLeft)
+                CGEventPost(kCGHIDEventTap, move_event)
+
+                print(f"Letter position {i+1}: ({screen_x:.1f}, {quartz_y:.1f})")
+                time.sleep(1)  # Pause at each position
+
+            # Move to ENTER button
+            quartz_enter_y = screen_height - enter_y
+            point = CGPointMake(enter_x, quartz_enter_y)
+            source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+            move_event = CGEventCreateMouseEvent(source, kCGEventMouseMoved, point, kCGMouseButtonLeft)
+            CGEventPost(kCGHIDEventTap, move_event)
+            print(f"ENTER button: ({enter_x:.1f}, {quartz_enter_y:.1f})")
+            time.sleep(1)
+
+            print("\nCompleted one cycle, starting over...")
+            time.sleep(1)  # Pause between cycles
+
+    except KeyboardInterrupt:
+        print("\nLetter position test stopped")
+    except Exception as e:
+        print(f"Error during letter position test: {e}")
+
 def main():
     print("\nAnagrams Solver")
     print("1. Open the Anagrams game")
     print("2. Press Enter to position the window")
-    print("3. Press Enter again to start solving")
-    print("   Q - Quit during solving")
+    print("3. Choose mode:")
+    print("   S - Solve (detect and input words)")
+    print("   B - Show boundaries (4 corners of letter grid)")
+    print("   L - Show letter positions (one at a time) and ENTER button")
+    print("   Q - Quit")
     input()
-    
+
     try:
         # Move window to corner
         print("\nMoving iPhone window to corner...")
@@ -501,21 +631,33 @@ def main():
         if not window_info:
             print("Failed to position window!")
             return
-        
+
         time.sleep(1)
-        
+
         solver = AnagramsSolver()
-        input("\nPress Enter to start solving...")
-        solver.solve()
-        
+
+        while True:
+            choice = input("\nEnter choice (S/B/L/Q): ").lower()
+            if choice == 's':
+                solver.solve()
+            elif choice == 'b':
+                test_bounds()
+            elif choice == 'l':
+                test_letter_positions()
+            elif choice == '':
+                solver.solve()
+            elif choice =='q':
+                print("Quitting...")
+                break
+            else:
+                print("Invalid choice")
+
     except KeyboardInterrupt:
         print("\nSolver stopped by user")
-        cv2.destroyAllWindows()
     except Exception as e:
         print(f"An error occurred: {str(e)}")
         import traceback
         traceback.print_exc()
-        cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
