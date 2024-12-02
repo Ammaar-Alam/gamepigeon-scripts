@@ -181,11 +181,11 @@ class AnagramsSolver:
         grid_width = width // 6  # 6 columns
         grid_height = bottom_crop - top_crop
         
-        # Calculate board area within window (similar to WordHunt)
-        board_top = int(self.window_height * 0.65)  # Adjust vertical position for anagrams
-        board_space = self.window_height * 0.15  # Vertical spacing for single row
-        board_width = self.window_width * 0.8  # Board takes up 80% of width
-        board_x_offset = self.window_width * 0.1  # 10% margin on each side
+        # Calculate board area within window
+        board_top = int(self.window_height * 0.075)  # Adjust vertical position for anagrams
+        board_space = self.window_height * 0.1  # Vertical spacing for single row
+        board_width = self.window_width * 0.9  # Board takes up 80% of width
+        board_x_offset = self.window_width * 0.05  # 10% margin on each side
         
         # Calculate letter positions
         self.letter_positions = []
@@ -195,8 +195,9 @@ class AnagramsSolver:
             
             # Calculate actual screen coordinates
             screen_x = self.window_x + board_x_offset + (norm_x * board_width)
-            y_pos = self.window_y + board_top + (board_space / 2)
+            y_pos = board_top +  board_space
             
+            # Store the raw screen coordinates (will be converted to Quartz coords when used)
             self.letter_positions.append((screen_x, y_pos))
             
             # Draw debug visualization
@@ -217,8 +218,8 @@ class AnagramsSolver:
                        (255, 0, 0),
                        1)
         
-        # Calculate ENTER button position
-        enter_y = self.window_y + int(self.window_height * 0.35)  # Adjusted for anagrams
+        # Calculate ENTER button position (raw screen coordinates)
+        enter_y = self.window_y - int(self.window_height * 0.075)  # Adjusted for anagrams
         enter_x = self.window_x + (self.window_width // 2)  # Center horizontally
         self.enter_position = (enter_x, enter_y)
         
@@ -283,10 +284,10 @@ class AnagramsSolver:
         
         # Calculate tile size based on image dimensions
         img_height, img_width = img.shape[:2]
-        tile_width = img_width // 6  # 6 tiles horizontally
+        tile_width = img_width  // 6  # 6 tiles horizontally
         
         # Add spacing between tiles
-        spacing = int(tile_width * 0.1)  # 10% of tile width for spacing
+        spacing = int(tile_width * 0.05)  # 10% of tile width for spacing
         effective_width = tile_width - spacing
         
         # Process each letter position
@@ -383,7 +384,7 @@ class AnagramsSolver:
                 # Find position of letter
                 for i, (x, y) in enumerate(self.letter_positions):
                     if self.letters[i] == letter:
-                        # Convert to Quartz coordinates
+                        # Convert to Quartz coordinates (flip y)
                         quartz_y = self.screen_height - y
                         
                         # Move to letter position first
@@ -407,6 +408,7 @@ class AnagramsSolver:
             # Press ENTER
             if self.enter_position:
                 x, y = self.enter_position
+                # Convert to Quartz coordinates (flip y)
                 quartz_y = self.screen_height - y
                 
                 # Move to ENTER button first
@@ -430,7 +432,7 @@ class AnagramsSolver:
         """Main solving loop."""
         # Start timer for game time limit
         start_time = time.time()
-        round_duration = 65  # 1:00 + 5 seconds buffer
+        round_duration = 63  # 1:00 + 5 seconds buffer
         
         # Focus window before capture
         focus_iphone_window()
