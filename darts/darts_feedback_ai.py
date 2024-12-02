@@ -241,7 +241,8 @@ class DartsFeedbackAI:
         
         # Update best throw for intended target if better
         if target_key not in self.best_throws or reward > self.best_throws[target_key].get('reward', 0):
-            self.best_throws[target_key] = throw_data
+            # Store complete throw data
+            self.best_throws[target_key] = throw_data.copy()
             print(f"New best throw for {target_key}! Reward: {reward:.2f}")
             self.save_best_throws()  # Save immediately when we get a new best
         
@@ -254,7 +255,7 @@ class DartsFeedbackAI:
                 self.throw_history[hit_key] = []
             
             # Add to history for the hit target
-            self.throw_history[hit_key].append(throw_data)
+            self.throw_history[hit_key].append(throw_data.copy())
             
             # Sort and keep best N throws for hit target
             if len(self.throw_history[hit_key]) > 0:
@@ -266,7 +267,7 @@ class DartsFeedbackAI:
             
             # Update best throw for hit target if better
             if hit_key not in self.best_throws or reward > self.best_throws[hit_key].get('reward', 0):
-                self.best_throws[hit_key] = throw_data
+                self.best_throws[hit_key] = throw_data.copy()
                 print(f"New best throw for {hit_key}! (Unintended hit) Reward: {reward:.2f}")
                 self.save_best_throws()  # Save immediately when we get a new best
         
@@ -393,7 +394,7 @@ class DartsFeedbackAI:
             if target_key in self.best_throws:
                 # Use exact parameters from best throw
                 throw_params = self.best_throws[target_key]['params'].copy()
-                print(f"Using best throw for {target_key}")
+                print(f"Using best throw for {target_key} (reward: {self.best_throws[target_key]['reward']:.2f})")
             else:
                 # If no best throw, use reference throw
                 throw_params = self.reference_throw.copy()
@@ -411,12 +412,12 @@ class DartsFeedbackAI:
 
         print(f"Executing throw with parameters: {throw_params}")
 
-        # Execute the throw
+        # Execute the throw with exact parameters
         try:
             self.focus_iphone_window()
             time.sleep(0.5)
 
-            # Move to start position
+            # Move to exact start position
             pyautogui.moveTo(
                 throw_params['start_x'],
                 throw_params['start_y'],
@@ -424,7 +425,7 @@ class DartsFeedbackAI:
             )
             time.sleep(0.1)
 
-            # Perform throw
+            # Perform throw with exact parameters
             pyautogui.dragTo(
                 throw_params['end_x'],
                 throw_params['end_y'],
