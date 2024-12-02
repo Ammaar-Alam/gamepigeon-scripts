@@ -397,7 +397,7 @@ class AnagramsSolver:
                         # Move to letter position
                         move_event = CGEventCreateMouseEvent(None, kCGEventMouseMoved, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
                         CGEventPost(kCGHIDEventTap, move_event)
-                        time.sleep(0.075)
+                        time.sleep(0.1)
 
                         # Click letter if in click mode
                         if self.mode == "click":
@@ -405,7 +405,7 @@ class AnagramsSolver:
                             up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
 
                             CGEventPost(kCGHIDEventTap, down_event)
-                            time.sleep(0.1)
+                            # time.sleep(0.1)
                             CGEventPost(kCGHIDEventTap, up_event)
                         break
 
@@ -429,7 +429,7 @@ class AnagramsSolver:
                     up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
 
                     CGEventPost(kCGHIDEventTap, down_event)
-                    time.sleep(0.1)
+                    # time.sleep(0.1)
                     CGEventPost(kCGHIDEventTap, up_event)
                     # time.sleep(0.3)
 
@@ -440,7 +440,7 @@ class AnagramsSolver:
         """Main solving loop."""
         # Start timer for game time limit
         start_time = time.time()
-        round_duration = 63  # 1:00 + 5 seconds buffer
+        round_duration = 61.5  # 1:00 + 5 seconds buffer
 
         # Focus window before capture
         focus_iphone_window()
