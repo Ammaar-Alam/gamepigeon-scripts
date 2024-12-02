@@ -3,18 +3,18 @@
     "params": {
       "start_x": 1620,
       "start_y": 969,
-      "end_x": 1622,
-      "end_y": 418,
+      "end_x": 1680,
+      "end_y": 380,
       "duration": 0.17
     },
     "landing_coords": [
-      175,
-      101
+      214,
+      108
     ],
-    "hit_number": 20,
+    "hit_number": 18,
     "hit_multiplier": 3,
-    "reward": 1.0,
-    "timestamp": "2024-12-01T18:52:02.930248"
+    "reward": 1.3434670387768672,
+    "timestamp": "2024-12-01T19:06:23.039168"
   },
   "25_single": {
     "params": {
@@ -304,5 +304,73 @@
     "hit_multiplier": 1,
     "reward": 0.16068126870302096,
     "timestamp": "2024-12-01T18:51:13.079436"
+  },
+  "6_single": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1654,
+      "end_y": 508,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      210,
+      171
+    ],
+    "hit_number": 6,
+    "hit_multiplier": 1,
+    "reward": 0.02143832377552316,
+    "timestamp": "2024-12-01T18:55:59.206341"
+  },
+  "1_double": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1663,
+      "end_y": 330,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      203,
+      43
+    ],
+    "hit_number": 1,
+    "hit_multiplier": 2,
+    "reward": 0.05814711714026762,
+    "timestamp": "2024-12-01T19:03:14.995174"
+  },
+  "1_triple": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1673,
+      "end_y": 393,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      205,
+      105
+    ],
+    "hit_number": 1,
+    "hit_multiplier": 3,
+    "reward": 1.2409673092323688,
+    "timestamp": "2024-12-01T19:04:48.564400"
+  },
+  "18_triple": {
+    "params": {
+      "start_x": 1620,
+      "start_y": 969,
+      "end_x": 1680,
+      "end_y": 380,
+      "duration": 0.17
+    },
+    "landing_coords": [
+      214,
+      108
+    ],
+    "hit_number": 18,
+    "hit_multiplier": 3,
+    "reward": 1.3434670387768672,
+    "timestamp": "2024-12-01T19:06:23.039168"
   }
 }

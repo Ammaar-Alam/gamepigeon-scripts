@@ -48,13 +48,13 @@ class DartsFeedbackAI:
             'triple': 3
         }
 
-        # Our known working triple-20 throw
+        # Our known working triple-20 throw - adjusted to aim higher
         self.reference_throw = {
             'start_x': 1620,
             'start_y': 969,
             'end_x': 1620,
-            'end_y': 469,  # Lower end_y for better accuracy
-            'duration': 0.17  # Fixed duration that works
+            'end_y': 419,  # Aim higher for triple zone
+            'duration': 0.17
         }
 
         # Initialize PPO agent only in training mode
@@ -146,31 +146,50 @@ class DartsFeedbackAI:
 
     def calculate_reward(self, target_coords, landing_coords, target_multiplier, hit_multiplier, hit_number, target_number):
         """Calculate reward for the throw."""
-        # Calculate distance error
-        error_x = target_coords[0] - landing_coords[0]
-        error_y = target_coords[1] - landing_coords[1]
-        distance_error = math.sqrt(error_x**2 + error_y**2)
+        # Calculate distance error with more weight on vertical accuracy
+        error_x = (target_coords[0] - landing_coords[0]) / 350.0  # Normalize to [0,1]
+        error_y = (target_coords[1] - landing_coords[1]) / 350.0  # Normalize to [0,1]
+        
+        # Much stronger weight on vertical accuracy
+        distance_error = math.sqrt(error_x**2 + (4.0 * error_y)**2)  # 4x weight on Y error
         
         # Base reward based on distance (sharper falloff)
-        base_score = math.exp(-distance_error / 30)  # Sharper distance penalty
+        base_score = math.exp(-distance_error * 2.5)  # Adjusted for new error scale
         
         # Reward for hitting any number
         if hit_number > 0:
-            # Simple reward based on how close we are to target
+            # Perfect hit
             if hit_number == target_number and hit_multiplier == self.multiplier_map[target_multiplier]:
-                # Perfect hit - give high reward
                 reward = 1.0
             else:
-                # Partial reward based on distance and multiplier match
+                # Partial reward based on multiplier match
                 if hit_multiplier == self.multiplier_map[target_multiplier]:
-                    # Right multiplier but wrong number - encourage this
-                    reward = base_score * 0.8
+                    # Right multiplier but wrong number - very good
+                    reward = 0.8 + (base_score * 0.2)
                 else:
-                    # Wrong multiplier - less reward
-                    reward = base_score * 0.3
+                    # Wrong multiplier - mostly distance based
+                    if hit_multiplier > self.multiplier_map[target_multiplier]:
+                        # Hitting higher multiplier than target - encourage this
+                        reward = base_score * 0.8
+                    else:
+                        # Hitting lower multiplier - discourage
+                        reward = base_score * 0.3
+                
+                # Bonus for being close to target number
+                number_diff = abs(hit_number - target_number)
+                if number_diff <= 1:  # Adjacent number
+                    reward *= 1.2
+                elif number_diff <= 2:  # Close number
+                    reward *= 1.1
         else:
             # Miss (no number hit)
             reward = base_score * 0.1  # Very low reward for misses
+        
+        # Additional vertical accuracy bonus/penalty
+        if abs(error_y) < 0.1:  # Very good vertical accuracy
+            reward *= 1.3
+        elif abs(error_y) > 0.3:  # Poor vertical accuracy
+            reward *= 0.7
         
         # Store throw data for both intended target and actual hit
         self.store_throw_data(target_number, target_multiplier, hit_number, hit_multiplier, 
