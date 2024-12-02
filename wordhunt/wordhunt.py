@@ -41,7 +41,7 @@ class TrieNode:
 class Trie:
     def __init__(self):
         self.root = TrieNode()
-    
+
     def insert(self, word: str):
         node = self.root
         for char in word:
@@ -67,11 +67,11 @@ def find_iphone_mirror_window():
             Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements,
             Quartz.kCGNullWindowID
         )
-        
+
         for window in windows:
             name = window.get(Quartz.kCGWindowName, '')
             owner = window.get(Quartz.kCGWindowOwnerName, '')
-            
+
             if 'iPhone Mirroring' in str(owner):  # Updated to match exact window name
                 bounds = window.get(Quartz.kCGWindowBounds)
                 if bounds:
@@ -84,7 +84,7 @@ def find_iphone_mirror_window():
                     )
     except Exception as e:
         print(f"Error finding window: {e}")
-    
+
     return None
 
 def move_iphone_mirror_to_corner():
@@ -103,7 +103,7 @@ def move_iphone_mirror_to_corner():
         time.sleep(0.5)
     except Exception as e:
         print(f"AppleScript failed: {e}")
-    
+
     window_info = find_iphone_mirror_window()
     if window_info:
         print(f"Window position after move: {window_info}")
@@ -152,13 +152,13 @@ def preprocess_for_cnn(cell_img: np.ndarray) -> torch.Tensor:
         gray = cv2.cvtColor(cell_img, cv2.COLOR_BGR2GRAY)
     else:
         gray = cell_img
-    
+
     # Resize to fixed size
     resized = cv2.resize(gray, (28, 28))
-    
+
     # Convert to PIL Image
     pil_img = Image.fromarray(resized)
-    
+
     # Define transforms
     transform = transforms.Compose([
         transforms.Grayscale(),
@@ -166,18 +166,18 @@ def preprocess_for_cnn(cell_img: np.ndarray) -> torch.Tensor:
         transforms.ToTensor(),
         transforms.Normalize((0.5,), (0.5,))
     ])
-    
+
     # Apply transforms
     tensor = transform(pil_img)
     tensor = tensor.unsqueeze(0)  # Add batch dimension
-    
+
     return tensor
 
 def train_model(model, train_loader, device):
     """Training function for the CNN."""
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
-    
+
     model.train()
     for epoch in range(10):  # Number of epochs
         for batch_idx, (data, target) in enumerate(train_loader):
@@ -211,15 +211,15 @@ class WordHuntSolver:
         window_info = find_iphone_mirror_window()
         if not window_info:
             raise Exception("Could not find iPhone Mirror window!")
-        
+
         # Get screen dimensions for coordinate conversion
         screen_width, screen_height = pyautogui.size()
         print(f"Screen dimensions: {screen_width}x{screen_height}")
-        
+
         # Store original window info
         self.window_x, self.window_y, self.window_width, self.window_height = window_info
         print(f"Window position: ({self.window_x}, {self.window_y}) {self.window_width}x{self.window_height}")
-        
+
         # Initialize screen capture
         self.sct = mss.mss()
         self.monitor = {
@@ -229,13 +229,13 @@ class WordHuntSolver:
             "height": self.window_height,
             "mon": 1
         }
-        
+
         print(f"Capture monitor: {self.monitor}")
-        
+
         # Initialize CNN model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = LetterCNN().to(self.device)
-        
+
         # Load trained weights
         try:
             self.model.load_state_dict(torch.load('letter_recognition_model.pth'))
@@ -244,24 +244,24 @@ class WordHuntSolver:
         except Exception as e:
             print(f"Error loading model: {e}")
             raise Exception("Could not load trained model!")
-        
+
         # Letter mapping
         self.idx_to_letter = {i: chr(i + 65).lower() for i in range(26)}
-        
+
         # Game board dimensions (4x4 grid)
         self.GRID_SIZE = 4
         self.letters = [['' for _ in range(self.GRID_SIZE)] for _ in range(self.GRID_SIZE)]
-        
+
         # Create debug window
         cv2.namedWindow("Debug View", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Debug View", self.window_width, self.window_height)
-        
+
         # Create event source for mouse control
         self.event_source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
-        
+
         # Load dictionary and build trie
         self.dictionary, self.trie = self.load_dictionary()
-        
+
         # Configure PyAutoGUI
         pyautogui.FAILSAFE = True
 
@@ -296,10 +296,10 @@ class WordHuntSolver:
 
         # Add a stop flag
         self.stop_flag = False
-        
+
         # Initialize keyboard listener in a separate thread
         keyboard.on_press(self.on_press)
-    
+
     def on_press(self, key):
         """Handle keyboard events."""
         try:
@@ -312,71 +312,71 @@ class WordHuntSolver:
     def detect_game_board(self, img: np.ndarray) -> Tuple[dict, np.ndarray]:
         """Detect the game board and calculate accurate board bounds."""
         debug_img = img.copy()
-        
+
         # Crop to the region where the game board is likely to be
         height, width = img.shape[:2]
         top_crop = int(height * 0.45)  # Adjust based on your game's layout
         bottom_crop = int(height * 0.85)  # Adjust as needed
-        
+
         cropped = img[top_crop:bottom_crop, :]
         cv2.imshow("Cropped Input", cropped)
         cv2.waitKey(1)
-        
+
         # Convert BGR to HSV
         hsv = cv2.cvtColor(cropped, cv2.COLOR_BGR2HSV)
-        
+
         # Define green color range
         lower_green = np.array([35, 40, 40])
         upper_green = np.array([85, 255, 255])
         green_mask = cv2.inRange(hsv, lower_green, upper_green)
-        
+
         # Apply morphological operations
         kernel = np.ones((5, 5), np.uint8)
         green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
         green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_OPEN, kernel)
-        
+
         cv2.imshow("Green Mask", green_mask)
         cv2.waitKey(1)
-        
+
         # Find contours
         contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
+
         if not contours:
             raise Exception("Could not detect game board!")
-        
+
         # Find the largest contour (assuming it's the board)
         board_contour = max(contours, key=cv2.contourArea)
-        
+
         # Draw the selected contour
         cv2.drawContours(cropped, [board_contour], -1, (0, 255, 0), 2)
         cv2.imshow("Selected Contour", cropped)
         cv2.waitKey(1)
-        
+
         # Get bounding rectangle
         x, y, w, h = cv2.boundingRect(board_contour)
         print(f"Raw board bounds: x={x}, y={y}, w={w}, h={h}")
-        
+
         # Adjust coordinates to account for cropping
         y += top_crop
-        
+
         # Adjust for margins
         margin_left = 77   # Adjust this value to fix the left margin
         margin_right = 77  # Adjust this value to fix the right margin
         margin_top = 5     # Adjust if needed
         margin_bottom = 95  # Adjust if needed
-        
+
         board_left = x + margin_left
         board_right = x + w - margin_right
         board_top = y + margin_top
         board_bottom = y + h - margin_bottom
-        
+
         board_width = board_right - board_left
         board_height = board_bottom - board_top
-        
+
         # Calculate cell sizes based on the actual board size
         cell_size_w = board_width / self.GRID_SIZE
         cell_size_h = board_height / self.GRID_SIZE
-        
+
         # Store board bounds
         self.board_bounds = {
             'top': board_top,
@@ -386,7 +386,7 @@ class WordHuntSolver:
             'cell_size_w': cell_size_w,
             'cell_size_h': cell_size_h
         }
-        
+
         # Calculate cell positions
         self.cell_positions = {}
         for i in range(self.GRID_SIZE):
@@ -397,13 +397,13 @@ class WordHuntSolver:
                     self.window_x + center_x,
                     self.window_y + center_y
                 )
-        
+
         # Extract board image
         board_img = img[
             int(board_top):int(board_bottom),
             int(board_left):int(board_right)
         ]
-        
+
         print(f"Board bounds: {self.board_bounds}")
         return self.board_bounds, board_img
     def load_dictionary(self) -> Tuple[Set[str], Trie]:
@@ -425,21 +425,21 @@ class WordHuntSolver:
         # Capture the entire window first
         screenshot = self.sct.grab(self.monitor)
         img = np.array(screenshot)
-        
+
         # Show the full capture for debugging
         cv2.imshow("Full Capture", img)
         cv2.waitKey(1)
-        
+
         # Detect and extract the game board
         _, board_img = self.detect_game_board(img)
-        
+
         # Show the cropped board for debugging
         if board_img is not None and board_img.size > 0:
             cv2.imshow("Board Capture", board_img)
             cv2.waitKey(1)
         else:
             print("Error: Board capture is empty!")
-        
+
         return board_img
 
     def preprocess_cell(self, cell_img: np.ndarray) -> np.ndarray:
@@ -449,22 +449,22 @@ class WordHuntSolver:
             gray = cv2.cvtColor(cell_img, cv2.COLOR_BGR2GRAY)
         else:
             gray = cell_img
-        
+
         # Increase contrast
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         gray = clahe.apply(gray)
-        
+
         # Initial noise reduction
         gray = cv2.GaussianBlur(gray, (3,3), 0)
-        
+
         # Binary threshold with Otsu's method
         _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        
+
         # Clean up noise and strengthen letter shapes
         kernel = np.ones((2,2), np.uint8)
         binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
         binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
-        
+
         # Add padding (important for Tesseract)
         padding = 20
         padded = cv2.copyMakeBorder(
@@ -473,14 +473,14 @@ class WordHuntSolver:
             cv2.BORDER_CONSTANT,
             value=0
         )
-        
+
         # Scale up image
         scale_factor = 3
-        resized = cv2.resize(padded, None, 
-                            fx=scale_factor, 
-                            fy=scale_factor, 
+        resized = cv2.resize(padded, None,
+                            fx=scale_factor,
+                            fy=scale_factor,
                             interpolation=cv2.INTER_CUBIC)
-        
+
         return resized
 
     def process_image(self, img: np.ndarray) -> List[List[str]]:
@@ -488,12 +488,12 @@ class WordHuntSolver:
         if img is None or img.size == 0:
             print("Error: Empty image provided to process_image")
             return [['' for _ in range(self.GRID_SIZE)] for _ in range(self.GRID_SIZE)]
-        
+
         letters = [['' for _ in range(self.GRID_SIZE)] for _ in range(self.GRID_SIZE)]
         cell_size_w = self.board_bounds['cell_size_w']
         cell_size_h = self.board_bounds['cell_size_h']
         debug_img = img.copy()
-        
+
         # Define transforms
         transform = transforms.Compose([
             transforms.ToPILImage(),
@@ -502,7 +502,7 @@ class WordHuntSolver:
             transforms.ToTensor(),
             transforms.Normalize((0.5,), (0.5,))
         ])
-        
+
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
                 # Extract cell
@@ -511,37 +511,37 @@ class WordHuntSolver:
                 cell_bottom = min(img.shape[0], int((i + 1) * cell_size_h - margin))
                 cell_left = max(0, int(j * cell_size_w + margin))
                 cell_right = min(img.shape[1], int((j + 1) * cell_size_w - margin))
-                
+
                 cell_img = img[cell_top:cell_bottom, cell_left:cell_right]
-                
+
                 if cell_img.size == 0 or cell_img.shape[0] == 0 or cell_img.shape[1] == 0:
                     continue
-                
+
                 # Preprocess and get prediction
                 try:
                     # Preprocess cell image
                     tensor = transform(cell_img)
                     tensor = tensor.unsqueeze(0)  # Add batch dimension
                     tensor = tensor.to(self.device)
-                    
+
                     # Get prediction
                     with torch.no_grad():
                         output = self.model(tensor)
                         pred_idx = output.argmax(dim=1).item()
                         confidence = torch.exp(output.max()).item()
-                        
+
                         letter = self.idx_to_letter[pred_idx]
-                        
+
                         if confidence > 0.5:  # Confidence threshold
                             letters[i][j] = letter
                             print(f"Detected letter at {i},{j}: {letter.upper()} (confidence: {confidence:.2f})")
                         else:
                             print(f"Low confidence detection at {i},{j}: {letter.upper()} ({confidence:.2f})")
-                
+
                 except Exception as e:
                     print(f"Error processing cell {i},{j}: {e}")
                     continue
-                
+
                 # Debug visualization
                 cv2.rectangle(
                     debug_img,
@@ -560,34 +560,34 @@ class WordHuntSolver:
                         (0, 0, 255),
                         2
                     )
-        
+
         # Show debug view
         cv2.imshow("Debug View", debug_img)
         cv2.waitKey(1)
-        
+
         return letters
 
     def find_words(self) -> List[str]:
         """Find all valid words on the board using optimized DFS with trie."""
         def is_valid_pos(x: int, y: int) -> bool:
             return 0 <= x < self.GRID_SIZE and 0 <= y < self.GRID_SIZE
-        
+
         def dfs(x: int, y: int, visited: set, node: TrieNode, words: set):
             if node.is_word:
                 words.add(node.word)
-            
+
             # Check all 8 directions
             directions = [(-1,-1), (-1,0), (-1,1), (0,-1), (0,1), (1,-1), (1,0), (1,1)]
             for dx, dy in directions:
                 new_x, new_y = x + dx, y + dy
-                if (is_valid_pos(new_x, new_y) and 
+                if (is_valid_pos(new_x, new_y) and
                     (new_x, new_y) not in visited):
                     letter = self.letters[new_x][new_y]
                     if letter in node.children:
                         visited.add((new_x, new_y))
                         dfs(new_x, new_y, visited, node.children[letter], words)
                         visited.remove((new_x, new_y))
-        
+
         found_words = set()
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
@@ -596,7 +596,7 @@ class WordHuntSolver:
                     if letter in self.trie.root.children:
                         visited = {(i, j)}
                         dfs(i, j, visited, self.trie.root.children[letter], found_words)
-        
+
         return sorted(list(found_words), key=lambda x: (-len(x), x))
 
     def find_word_path(self, word: str) -> List[Tuple[int, int]]:
@@ -620,11 +620,11 @@ class WordHuntSolver:
                 (1,0),    # down
                 (1,1)     # down-right
             ]
-            
+
             for dx, dy in directions:
                 new_x, new_y = x + dx, y + dy
-                if (0 <= new_x < self.GRID_SIZE and 
-                    0 <= new_y < self.GRID_SIZE and 
+                if (0 <= new_x < self.GRID_SIZE and
+                    0 <= new_y < self.GRID_SIZE and
                     (new_x, new_y) not in visited and
                     self.letters[new_x][new_y].lower() == target[index].lower()):
                     visited.add((new_x, new_y))
@@ -634,7 +634,7 @@ class WordHuntSolver:
                     path.pop()
                     visited.remove((new_x, new_y))
             return False
-        
+
         word = word.lower()
         # Search for starting letter
         for i in range(self.GRID_SIZE):
@@ -653,61 +653,61 @@ class WordHuntSolver:
         if not path:
             print(f"Could not find path for word: {word}")
             return
-        
+
         try:
             screen_height = pyautogui.size()[1]
             points = []
-            
+
             # Calculate board area within window
             board_height = self.board_bounds['bottom'] - self.board_bounds['top']
-            
+
             # Move the board down by adjusting the starting position
             board_top = self.window_y + int(self.window_height * 0.25)  # Adjust vertical position
             board_space = self.window_height * 0.25  # Vertical spacing between cells
             board_width = self.window_width * 0.6  # Board takes up 60% of window width
             board_x_offset = self.window_width * 0.2  # 20% margin on each side
-            
+
             for grid_pos in path:
                 i, j = grid_pos
-                
+
                 # Calculate normalized position (0-1 range)
                 norm_x = (j + 0.5) / self.GRID_SIZE
                 norm_y = (i + 0.5) / self.GRID_SIZE
-                
+
                 # Calculate actual screen coordinates
                 screen_x = self.window_x + board_x_offset + (norm_x * board_width)
                 y_pos = board_top + (norm_y * board_space)
-                
+
                 # Convert to Quartz coordinate system
                 quartz_y = screen_height - y_pos
-                
+
                 print(f"Grid pos {i},{j} -> Window pos ({screen_x:.1f}, {y_pos:.1f}) -> Quartz pos ({screen_x:.1f}, {quartz_y:.1f})")
                 points.append((screen_x, quartz_y))
-            
+
             # Create event source
             source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
-            
+
             # Mouse down at start
             start_point = CGPointMake(points[0][0], points[0][1])
             down_event = create_mouse_event(kCGEventLeftMouseDown, start_point, source)
             CGEventPost(kCGHIDEventTap, down_event)
-            time.sleep(0.05)
-            
+            time.sleep(0.03)
+
             # Drag through points
             for point in points[1:]:
                 quartz_point = CGPointMake(point[0], point[1])
                 drag_event = create_mouse_event(kCGEventLeftMouseDragged, quartz_point, source)
                 CGEventPost(kCGHIDEventTap, drag_event)
-                time.sleep(0.05)
-            
+                time.sleep(0.03)
+
             # Release at end
             end_point = CGPointMake(points[-1][0], points[-1][1])
             up_event = create_mouse_event(kCGEventLeftMouseUp, end_point, source)
             CGEventPost(kCGHIDEventTap, up_event)
-            
+
             # Wait between words
-            time.sleep(0.2)
-            
+            time.sleep(0.075)
+
         except Exception as e:
             print(f"Error swiping word {word}: {e}")
 
@@ -716,39 +716,39 @@ class WordHuntSolver:
         # Start timer for 1:15 round limit
         start_time = time.time()
         round_duration = 80  # 1:15 + 5 seconds buffer to be safe
-        
+
         # Focus window before capture
         focus_iphone_window()
         time.sleep(0.5)
-        
+
         # Capture and process the board
         print("\nCapturing board...")
         board_img = self.capture_board()
-        
+
         print("\nProcessing image...")
         self.letters = self.process_image(board_img)
-        
+
         print("\nDetected letters:")
         for row in self.letters:
             print(" ".join(letter.upper() if letter else '_' for letter in row))
-        
+
         # Verify letters are correct (no need for this anymore since AI is hella accurate)
         # print("\nAre these letters correct? (y/n)")
         # if input().lower() != 'y':
         #     print("Aborting...")
         #     return
-        
+
         # Find all possible words
         words = self.find_words()
         print(f"\nFound {len(words)} possible words")
-        
+
         # Sort words by length (longest first) and alphabetically
         words.sort(key=lambda x: (-len(x), x))
-        
+
         # Make sure window is still focused before swiping
         focus_iphone_window()
         time.sleep(0.5)  # Wait for focus
-        
+
         # Execute swipes for each word
         # time.sleep(0.5) # so top word doesn't get skipped // never that didn't fix it :)
         for word in words:
@@ -757,43 +757,42 @@ class WordHuntSolver:
             if elapsed_time >= round_duration:
                 print("\nTime limit reached (1:15)! Stopping solver...")
                 break
-            
+
             if self.stop_flag:
                 print("Solver stopped by user (Q pressed)")
                 break
-            
+
             print(f"Swiping word: {word}")
             # Verify path exists before attempting swipe
             path = self.find_word_path(word)
             if not path:
                 print(f"Could not find path for word: {word}")
                 continue
-                
+
             # Add small delay before first swipe
             if word == words[0]:  # If this is the first word
                 time.sleep(0.5)  # Add extra delay before first swipe
                 focus_iphone_window()  # Re-focus window before first swipe
-            
+
             self.swipe_word(word)
-            time.sleep(0.2)  # Slightly increased delay between words
 
     def __del__(self):
         # Stop the keyboard listener
         if hasattr(self, 'listener'):
             self.listener.stop()
         cv2.destroyAllWindows()
-    
+
     def test_bounds(self):
         """Move mouse around the border of the game area to visualize swipe boundaries."""
         try:
             screen_height = pyautogui.size()[1]
-            
+
             # Calculate board area
             board_top = self.window_y + int(self.window_height * 0.25) # top margin
             board_space = self.window_height * 0.25 # vertical spacing between cells
             board_width = self.window_width * 0.6 # the width (horizontal spacing) each grid cell
             board_x_offset = self.window_width * 0.2 # where the left edge of the grid starts
-            
+
             # Calculate corner points (clockwise from top-left)
             corners = [
                 # Top-left (0,0)
@@ -817,10 +816,10 @@ class WordHuntSolver:
                     screen_height - (board_top + board_space)
                 )
             ]
-            
+
             print("\nMoving mouse to show game boundaries...")
             print("Press Ctrl+C to stop")
-            
+
             # Move to each corner and pause
             while True:  # Loop until interrupted
                 for i, (x, y) in enumerate(corners):
@@ -830,26 +829,26 @@ class WordHuntSolver:
                     CGEventPost(kCGHIDEventTap, move_event)
                     print(f"Corner {i+1}: ({x:.1f}, {y:.1f})")
                     time.sleep(1)  # Pause at each corner
-                    
+
         except KeyboardInterrupt:
             print("\nBoundary test stopped")
         except Exception as e:
             print(f"Error during boundary test: {e}")
-    
+
     def test_cell_positions(self):
         """Move mouse to center of each cell to visualize all possible swipe positions."""
         try:
             screen_height = pyautogui.size()[1]
-            
+
             # Calculate board area
             board_top = self.window_y + int(self.window_height * 0.2)
             board_space = self.window_height * 0.35
             board_width = self.window_width * 0.8
             board_x_offset = self.window_width * 0.1
-            
+
             print("\nMoving mouse to show all cell positions...")
             print("Press Ctrl+C to stop")
-            
+
             while True:  # Loop until interrupted
                 # Loop through each cell in grid
                 for i in range(self.GRID_SIZE):
@@ -857,24 +856,24 @@ class WordHuntSolver:
                         # Calculate normalized position (0-1 range)
                         norm_x = (j + 0.5) / self.GRID_SIZE
                         norm_y = (i + 0.5) / self.GRID_SIZE
-                        
+
                         # Calculate actual screen coordinates
                         screen_x = self.window_x + board_x_offset + (norm_x * board_width)
                         y_pos = board_top + (norm_y * board_space)
                         quartz_y = screen_height - y_pos
-                        
+
                         # Move to position
                         point = CGPointMake(screen_x, quartz_y)
                         source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
                         move_event = CGEventCreateMouseEvent(source, kCGEventMouseMoved, point, kCGMouseButtonLeft)
                         CGEventPost(kCGHIDEventTap, move_event)
-                        
+
                         print(f"Cell ({i},{j}): ({screen_x:.1f}, {quartz_y:.1f})")
                         time.sleep(0.5)  # Pause at each cell
-                        
+
                 print("\nCompleted one cycle, starting over...")
                 time.sleep(1)  # Pause between cycles
-                        
+
         except KeyboardInterrupt:
             print("\nCell position test stopped")
         except Exception as e:
@@ -892,7 +891,7 @@ def main():
     print("   Enter - Start solving")
     print("   Q - Quit")
     input()
-    
+
     try:
         # Move window to corner
         print("\nMoving iPhone window to corner...")
@@ -900,11 +899,11 @@ def main():
         if not window_info:
             print("Failed to position window!")
             return
-        
+
         time.sleep(1)
-        
+
         solver = WordHuntSolver()
-        
+
         while True:
             choice = input("\nEnter choice (T/C/Enter/Q): ").lower()
             if choice == 't':
@@ -917,7 +916,7 @@ def main():
                 solver.solve()
             else:
                 print("Invalid choice")
-        
+
     except KeyboardInterrupt:
         print("\nSolver stopped by user")
         cv2.destroyAllWindows()
