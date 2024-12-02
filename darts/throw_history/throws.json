@@ -4,6 +4,23 @@
       "params": {
         "start_x": 1620,
         "start_y": 969,
+        "end_x": 1609,
+        "end_y": 404,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        168,
+        97
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 3,
+      "reward": 1.3,
+      "timestamp": "2024-12-01T20:28:18.375522"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
         "end_x": 1586,
         "end_y": 377,
         "duration": 0.17
@@ -322,23 +339,6 @@
       "hit_multiplier": 1,
       "reward": 0.23571858044329064,
       "timestamp": "2024-12-01T19:23:01.473435"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1590,
-        "end_y": 421,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        156,
-        117
-      ],
-      "hit_number": 5,
-      "hit_multiplier": 1,
-      "reward": 0.23552772866384242,
-      "timestamp": "2024-12-01T19:18:08.438449"
     }
   ],
   "20_single": [
@@ -774,6 +774,23 @@
       "hit_multiplier": 1,
       "reward": 0.10574422259345202,
       "timestamp": "2024-12-01T19:19:25.483103"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1591,
+        "end_y": 463,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        153,
+        150
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 1,
+      "reward": 0.07127845990056296,
+      "timestamp": "2024-12-01T20:28:28.355253"
     }
   ],
   "12_triple": [
@@ -829,6 +846,23 @@
       "hit_multiplier": 1,
       "reward": 0.23552772866384242,
       "timestamp": "2024-12-01T19:21:48.283981"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1667,
+        "end_y": 347,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        203,
+        83
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 1,
+      "reward": 0.23064215940626076,
+      "timestamp": "2024-12-01T20:28:23.323826"
     },
     {
       "params": {

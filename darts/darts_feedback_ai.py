@@ -50,11 +50,11 @@ class DartsFeedbackAI:
 
         # Our known working triple-20 throw - adjusted to aim higher
         self.reference_throw = {
-            'start_x': 1620,
-            'start_y': 969,
-            'end_x': 1620,
-            'end_y': 419,  # Aim higher for triple zone
-            'duration': 0.17
+            'start_x': int(1620),
+            'start_y': int(969),
+            'end_x': int(1620),
+            'end_y': int(419),  # Aim higher for triple zone
+            'duration': round(0.17, 3)  # Round to 3 decimal places
         }
 
         # Initialize PPO agent only in training mode
@@ -129,19 +129,19 @@ class DartsFeedbackAI:
     def action_to_throw_params(self, action):
         """Convert PPO action to throw parameters."""
         # Scale actions to adjustments from reference throw
-        x_adjust = np.clip(action[0] * 100, -160, 160)  # Max adjustment of 160 pixels
-        y_adjust = np.clip(action[1] * 100, -160, 160)
+        x_adjust = int(np.clip(action[0] * 100, -160, 160))  # Max adjustment of 160 pixels
+        y_adjust = int(np.clip(action[1] * 100, -160, 160))
 
         # Calculate end positions relative to reference throw
         end_x = int(self.reference_throw['end_x'] + x_adjust)
         end_y = int(self.reference_throw['end_y'] + y_adjust)
 
         return {
-            'start_x': self.reference_throw['start_x'],
-            'start_y': self.reference_throw['start_y'],
+            'start_x': int(self.reference_throw['start_x']),
+            'start_y': int(self.reference_throw['start_y']),
             'end_x': end_x,
             'end_y': end_y,
-            'duration': self.reference_throw['duration']  # Use fixed duration
+            'duration': round(self.reference_throw['duration'], 3)  # Round to 3 decimal places
         }
 
     def calculate_reward(self, target_coords, landing_coords, target_multiplier, hit_multiplier, hit_number, target_number):
@@ -202,24 +202,49 @@ class DartsFeedbackAI:
         try:
             with open('throw_history/best_throws.json', 'r') as f:
                 self.best_throws = json.load(f)
+                # Convert all coordinates to integers and round durations
+                for key in self.best_throws:
+                    params = self.best_throws[key]['params']
+                    params['start_x'] = int(params['start_x'])
+                    params['start_y'] = int(params['start_y'])
+                    params['end_x'] = int(params['end_x'])
+                    params['end_y'] = int(params['end_y'])
+                    params['duration'] = round(params['duration'], 3)
         except FileNotFoundError:
             self.best_throws = {}
     
     def save_best_throws(self):
         """Save best throws to file."""
+        # Ensure all coordinates are integers and durations are rounded before saving
+        for key in self.best_throws:
+            params = self.best_throws[key]['params']
+            params['start_x'] = int(params['start_x'])
+            params['start_y'] = int(params['start_y'])
+            params['end_x'] = int(params['end_x'])
+            params['end_y'] = int(params['end_y'])
+            params['duration'] = round(params['duration'], 3)
+        
         with open('throw_history/best_throws.json', 'w') as f:
             json.dump(self.best_throws, f, indent=2)
 
     def store_throw_data(self, target_number, target_multiplier, hit_number, hit_multiplier, 
                         landing_coords, reward, throw_params):
         """Store throw data for both intended target and actual hit."""
+        # Ensure coordinates are integers and duration is rounded
+        throw_params = throw_params.copy()
+        throw_params['start_x'] = int(throw_params['start_x'])
+        throw_params['start_y'] = int(throw_params['start_y'])
+        throw_params['end_x'] = int(throw_params['end_x'])
+        throw_params['end_y'] = int(throw_params['end_y'])
+        throw_params['duration'] = round(throw_params['duration'], 3)
+        
         # Store for intended target
         target_key = self.get_target_key(target_number, target_multiplier)
         if target_key not in self.throw_history:
             self.throw_history[target_key] = []
         
         throw_data = {
-            'params': throw_params.copy(),
+            'params': throw_params,
             'landing_coords': landing_coords,
             'hit_number': hit_number,
             'hit_multiplier': hit_multiplier,
@@ -279,11 +304,30 @@ class DartsFeedbackAI:
         try:
             with open('throw_history/throws.json', 'r') as f:
                 self.throw_history = json.load(f)
+                # Convert all coordinates to integers and round durations in loaded history
+                for key in self.throw_history:
+                    for throw in self.throw_history[key]:
+                        params = throw['params']
+                        params['start_x'] = int(params['start_x'])
+                        params['start_y'] = int(params['start_y'])
+                        params['end_x'] = int(params['end_x'])
+                        params['end_y'] = int(params['end_y'])
+                        params['duration'] = round(params['duration'], 3)
         except FileNotFoundError:
             self.throw_history = {}
     
     def save_history(self):
         """Save throw history to file."""
+        # Ensure all coordinates are integers and durations are rounded before saving
+        for key in self.throw_history:
+            for throw in self.throw_history[key]:
+                params = throw['params']
+                params['start_x'] = int(params['start_x'])
+                params['start_y'] = int(params['start_y'])
+                params['end_x'] = int(params['end_x'])
+                params['end_y'] = int(params['end_y'])
+                params['duration'] = round(params['duration'], 3)
+        
         with open('throw_history/throws.json', 'w') as f:
             json.dump(self.throw_history, f, indent=2)
 
@@ -392,18 +436,29 @@ class DartsFeedbackAI:
         # In competing mode, strictly use best throw parameters
         if self.mode == "competing":
             if target_key in self.best_throws:
-                # Use exact parameters from best throw
+                # Use exact parameters from best throw with integer coordinates
                 throw_params = self.best_throws[target_key]['params'].copy()
+                throw_params['start_x'] = int(throw_params['start_x'])
+                throw_params['start_y'] = int(throw_params['start_y'])
+                throw_params['end_x'] = int(throw_params['end_x'])
+                throw_params['end_y'] = int(throw_params['end_y'])
+                throw_params['duration'] = round(throw_params['duration'], 3)
                 print(f"Using best throw for {target_key} (reward: {self.best_throws[target_key]['reward']:.2f})")
             else:
-                # If no best throw, use reference throw
-                throw_params = self.reference_throw.copy()
+                # If no best throw, use reference throw with integer coordinates
+                throw_params = {
+                    'start_x': int(self.reference_throw['start_x']),
+                    'start_y': int(self.reference_throw['start_y']),
+                    'end_x': int(self.reference_throw['end_x']),
+                    'end_y': int(self.reference_throw['end_y']),
+                    'duration': round(self.reference_throw['duration'], 3)
+                }
                 print(f"No best throw found for {target_key}, using reference")
         else:
             # Training mode - use PPO agent with exploration
             state = self.get_state(target_coords, self.multiplier_map[target_multiplier])
             action, log_prob = self.agent.select_action(state, deterministic=False)  # Allow exploration in training
-            throw_params = self.action_to_throw_params(action)
+            throw_params = self.action_to_throw_params(action)  # Already ensures integer coordinates
 
             # Store for training update
             self.last_state = state
@@ -419,17 +474,17 @@ class DartsFeedbackAI:
 
             # Move to exact start position
             pyautogui.moveTo(
-                throw_params['start_x'],
-                throw_params['start_y'],
+                int(throw_params['start_x']),
+                int(throw_params['start_y']),
                 duration=0.1
             )
             time.sleep(0.1)
 
             # Perform throw with exact parameters
             pyautogui.dragTo(
-                throw_params['end_x'],
-                throw_params['end_y'],
-                duration=throw_params['duration'],
+                int(throw_params['end_x']),
+                int(throw_params['end_y']),
+                duration=round(throw_params['duration'], 3),
                 button='left'
             )
 

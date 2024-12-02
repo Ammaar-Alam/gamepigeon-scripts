@@ -3,18 +3,18 @@
     "params": {
       "start_x": 1620,
       "start_y": 969,
-      "end_x": 1586,
-      "end_y": 377,
+      "end_x": 1609,
+      "end_y": 404,
       "duration": 0.17
     },
     "landing_coords": [
-      156,
-      102
+      168,
+      97
     ],
-    "hit_number": 5,
+    "hit_number": 20,
     "hit_multiplier": 3,
-    "reward": 1.2643994805198746,
-    "timestamp": "2024-12-01T19:21:53.839206"
+    "reward": 1.3,
+    "timestamp": "2024-12-01T20:28:18.375522"
   },
   "20_single": {
     "params": {
