@@ -13,6 +13,7 @@ from ppo_agent import DartsPPO
 
 # Prevent mouse from going to screen corners
 pyautogui.FAILSAFE = True
+pyautogui.PAUSE = 0.1  # Add small delay between pyautogui commands
 
 def parse_coords(coord_str):
     """Parse coordinate string like '(162, 94)' into x,y tuple"""
@@ -32,11 +33,15 @@ def parse_score_text(score_text):
         pass
     return None, None
 
+def ease_out_quad(x):
+    """Easing function for smooth mouse movement."""
+    return 1 - (1 - x) * (1 - x)
+
 class DartsFeedbackAI:
     def __init__(self, mode="training"):
         self.throw_history = {}  # Store throws for each target
         self.best_throws = {}    # Store best throws for each target
-        
+
         # Set AI mode (training or competing)
         self.mode = mode
         print(f"AI initialized in {mode} mode")
@@ -62,12 +67,12 @@ class DartsFeedbackAI:
             # State: [target_x, target_y, target_multiplier, prev_landing_x, prev_landing_y, prev_score]
             # Action: [x_adjust, y_adjust]  # Only learn adjustments from reference throw
             self.agent = DartsPPO(state_dim=6, action_dim=2)
-            
+
             # Training stats
             self.episode_rewards = []
             self.training_step = 0
             self.best_reward = -float('inf')
-            
+
             # Try to load best model if exists
             try:
                 if os.path.exists('models/best_model.pth'):
@@ -116,7 +121,7 @@ class DartsFeedbackAI:
         # Default previous landing to target coords if no previous throw
         prev_landing = self.last_throw if self.last_throw else target_coords
         prev_score = 0.0 if not hasattr(self, 'last_score') else self.last_score
-        
+
         return np.array([
             target_coords[0] / 350.0,  # Normalize coordinates
             target_coords[1] / 350.0,
@@ -149,13 +154,13 @@ class DartsFeedbackAI:
         # Calculate distance error with more weight on vertical accuracy
         error_x = (target_coords[0] - landing_coords[0]) / 350.0  # Normalize to [0,1]
         error_y = (target_coords[1] - landing_coords[1]) / 350.0  # Normalize to [0,1]
-        
+
         # Much stronger weight on vertical accuracy
         distance_error = math.sqrt(error_x**2 + (4.0 * error_y)**2)  # 4x weight on Y error
-        
+
         # Base reward based on distance (sharper falloff)
         base_score = math.exp(-distance_error * 2.5)  # Adjusted for new error scale
-        
+
         # Reward for hitting any number
         if hit_number > 0:
             # Perfect hit
@@ -174,7 +179,7 @@ class DartsFeedbackAI:
                     else:
                         # Hitting lower multiplier - discourage
                         reward = base_score * 0.3
-                
+
                 # Bonus for being close to target number
                 number_diff = abs(hit_number - target_number)
                 if number_diff <= 1:  # Adjacent number
@@ -184,17 +189,17 @@ class DartsFeedbackAI:
         else:
             # Miss (no number hit)
             reward = base_score * 0.1  # Very low reward for misses
-        
+
         # Additional vertical accuracy bonus/penalty
         if abs(error_y) < 0.1:  # Very good vertical accuracy
             reward *= 1.3
         elif abs(error_y) > 0.3:  # Poor vertical accuracy
             reward *= 0.7
-        
+
         # Store throw data for both intended target and actual hit
-        self.store_throw_data(target_number, target_multiplier, hit_number, hit_multiplier, 
-                            landing_coords, reward, self.current_throw_params)
-        
+        self.store_throw_data(target_number, target_multiplier, hit_number, hit_multiplier,
+                              landing_coords, reward, self.current_throw_params)
+
         return reward
 
     def load_best_throws(self):
@@ -212,7 +217,7 @@ class DartsFeedbackAI:
                     params['duration'] = round(params['duration'], 3)
         except FileNotFoundError:
             self.best_throws = {}
-    
+
     def save_best_throws(self):
         """Save best throws to file."""
         # Ensure all coordinates are integers and durations are rounded before saving
@@ -223,12 +228,12 @@ class DartsFeedbackAI:
             params['end_x'] = int(params['end_x'])
             params['end_y'] = int(params['end_y'])
             params['duration'] = round(params['duration'], 3)
-        
+
         with open('throw_history/best_throws.json', 'w') as f:
             json.dump(self.best_throws, f, indent=2)
 
-    def store_throw_data(self, target_number, target_multiplier, hit_number, hit_multiplier, 
-                        landing_coords, reward, throw_params):
+    def store_throw_data(self, target_number, target_multiplier, hit_number, hit_multiplier,
+                         landing_coords, reward, throw_params):
         """Store throw data for both intended target and actual hit."""
         # Ensure coordinates are integers and duration is rounded
         throw_params = throw_params.copy()
@@ -237,12 +242,12 @@ class DartsFeedbackAI:
         throw_params['end_x'] = int(throw_params['end_x'])
         throw_params['end_y'] = int(throw_params['end_y'])
         throw_params['duration'] = round(throw_params['duration'], 3)
-        
+
         # Store for intended target
         target_key = self.get_target_key(target_number, target_multiplier)
         if target_key not in self.throw_history:
             self.throw_history[target_key] = []
-        
+
         throw_data = {
             'params': throw_params,
             'landing_coords': landing_coords,
@@ -251,10 +256,10 @@ class DartsFeedbackAI:
             'reward': reward,
             'timestamp': datetime.now().isoformat()
         }
-        
+
         # First add the new throw
         self.throw_history[target_key].append(throw_data)
-        
+
         # Then sort and keep best N throws
         max_history = 20
         if len(self.throw_history[target_key]) > 0:
@@ -263,25 +268,25 @@ class DartsFeedbackAI:
                 key=lambda t: t.get('reward', 0),
                 reverse=True
             )[:max_history]
-        
+
         # Update best throw for intended target if better
         if target_key not in self.best_throws or reward > self.best_throws[target_key].get('reward', 0):
             # Store complete throw data
             self.best_throws[target_key] = throw_data.copy()
             print(f"New best throw for {target_key}! Reward: {reward:.2f}")
             self.save_best_throws()  # Save immediately when we get a new best
-        
+
         # If we hit a different number, store for that target too
         if hit_number > 0 and (hit_number != target_number or hit_multiplier != self.multiplier_map[target_multiplier]):
-            hit_key = self.get_target_key(hit_number, 'single' if hit_multiplier == 1 else 
-                                        'double' if hit_multiplier == 2 else 'triple')
-            
+            hit_key = self.get_target_key(hit_number, 'single' if hit_multiplier == 1 else
+                                          'double' if hit_multiplier == 2 else 'triple')
+
             if hit_key not in self.throw_history:
                 self.throw_history[hit_key] = []
-            
+
             # Add to history for the hit target
             self.throw_history[hit_key].append(throw_data.copy())
-            
+
             # Sort and keep best N throws for hit target
             if len(self.throw_history[hit_key]) > 0:
                 self.throw_history[hit_key] = sorted(
@@ -289,13 +294,13 @@ class DartsFeedbackAI:
                     key=lambda t: t.get('reward', 0),
                     reverse=True
                 )[:max_history]
-            
+
             # Update best throw for hit target if better
             if hit_key not in self.best_throws or reward > self.best_throws[hit_key].get('reward', 0):
                 self.best_throws[hit_key] = throw_data.copy()
                 print(f"New best throw for {hit_key}! (Unintended hit) Reward: {reward:.2f}")
                 self.save_best_throws()  # Save immediately when we get a new best
-        
+
         # Save updated history
         self.save_history()
 
@@ -315,7 +320,7 @@ class DartsFeedbackAI:
                         params['duration'] = round(params['duration'], 3)
         except FileNotFoundError:
             self.throw_history = {}
-    
+
     def save_history(self):
         """Save throw history to file."""
         # Ensure all coordinates are integers and durations are rounded before saving
@@ -327,14 +332,14 @@ class DartsFeedbackAI:
                 params['end_x'] = int(params['end_x'])
                 params['end_y'] = int(params['end_y'])
                 params['duration'] = round(params['duration'], 3)
-        
+
         with open('throw_history/throws.json', 'w') as f:
             json.dump(self.throw_history, f, indent=2)
 
     def get_target_key(self, number, multiplier):
         """Convert number and multiplier to consistent target key format."""
         return f"{number}_{multiplier}"
-    
+
     def execute_throw(self, target_number, target_multiplier):
         """Execute throw using best known parameters or PPO agent."""
         self.current_target = (target_number, target_multiplier)
@@ -358,7 +363,7 @@ class DartsFeedbackAI:
 
             '4_single': [260, 117],
             '4_double': [288, 95],
-            '4_triple': [237, 129], 
+            '4_triple': [237, 129],
 
             '13_single': [277, 143],
             '13_double': [305, 133],
@@ -470,23 +475,48 @@ class DartsFeedbackAI:
         # Execute the throw with exact parameters
         try:
             self.focus_iphone_window()
+
+            # Force absolute positioning and add delays
+            pyautogui.FAILSAFE = True
+            pyautogui.PAUSE = 0.1
+
+            # Ensure mouse is completely still before starting
             time.sleep(0.5)
 
-            # Move to exact start position
-            pyautogui.moveTo(
-                int(throw_params['start_x']),
-                int(throw_params['start_y']),
-                duration=0.1
-            )
-            time.sleep(0.1)
+            # Get exact integer coordinates
+            start_x = int(throw_params['start_x'])
+            start_y = int(throw_params['start_y'])
+            end_x = int(throw_params['end_x'])
+            end_y = int(throw_params['end_y'])
+            duration = round(throw_params['duration'], 3)
 
-            # Perform throw with exact parameters
+            # Move to start position
+            pyautogui.moveTo(
+                x=start_x,
+                y=start_y,
+                duration=0.1  # Small duration for precise positioning
+            )
+
+            # Small delay to ensure we're stable at start position
+            time.sleep(0.2)
+
+            # Press mouse button
+            pyautogui.mouseDown()
+
+            # Execute the drag using absolute coordinates with easing
             pyautogui.dragTo(
-                int(throw_params['end_x']),
-                int(throw_params['end_y']),
-                duration=round(throw_params['duration'], 3),
+                x=end_x,
+                y=end_y,
+                duration=duration,
+                tween=ease_out_quad,
                 button='left'
             )
+
+            # Release mouse button (dragTo should do this, but let's be explicit)
+            pyautogui.mouseUp()
+
+            # Ensure mouse is completely still after throw
+            time.sleep(0.2)
 
             self.current_throw_params = throw_params
 
@@ -501,15 +531,15 @@ class DartsFeedbackAI:
             return
 
         # Check if we have all required data
-        if (self.last_state is None or 
-            self.last_action is None or 
+        if (self.last_state is None or
+            self.last_action is None or
             self.last_log_prob is None):
             print("Missing required training data")
             return
 
         # Calculate reward
         reward = self.calculate_reward(
-            target_coords, 
+            target_coords,
             landing_coords,
             self.current_target[1],  # target_multiplier
             hit_multiplier,
@@ -538,12 +568,12 @@ class DartsFeedbackAI:
         # Use more experiences for training
         batch_size = min(32, len(self.agent.experiences))  # Increased from 16
         self.agent.train(batch_size=batch_size, epochs=15)  # Increased epochs
-        
+
         # Calculate average reward over last 5 throws
         window_size = min(5, len(self.episode_rewards))  # Increased from 3
         avg_reward = sum(self.episode_rewards[-window_size:]) / window_size
         print(f"Average reward over last {window_size} throws: {avg_reward:.2f}")
-        
+
         # Save if significantly improved (within 98% of best)
         if avg_reward > self.best_reward * 0.98:  # More selective saving
             if avg_reward > self.best_reward:  # Only update best if truly better
@@ -592,7 +622,7 @@ async def handle_client(websocket, path):
     mode = "training"
     if "?" in path and "mode=competing" in path.split("?")[1]:
         mode = "competing"
-    
+
     ai = DartsFeedbackAI(mode=mode)
     print(f"Client connected in {mode} mode")
 
