@@ -151,7 +151,7 @@ class AnagramsSolver:
         """Load dictionary and build trie."""
         words = set()
         trie = Trie()
-        dictionary_path = "../wordhunt/dictionary.txt"
+        dictionary_path = "/Users/alam/Documents/GitHub/gamepigeon-scripts/wordhunt/dictionary.txt"
         if os.path.exists(dictionary_path):
             with open(dictionary_path, 'r') as f:
                 for line in f:
@@ -361,23 +361,18 @@ class AnagramsSolver:
         # Calculate tile size based on image dimensions
         img_height, img_width = img.shape[:2]
         tile_width = img_width // 6  # 6 tiles horizontally
-        tile_height = img_height     # Full height for each tile
+        
+        # Add spacing between tiles
+        spacing = int(tile_width * 0.1)  # 10% of tile width for spacing
+        effective_width = tile_width - spacing
         
         # Process each letter position
         for i in range(6):  # 6 tiles
-            # Calculate tile bounds
-            x_start = i * tile_width
-            x_end = (i + 1) * tile_width
-            y_start = 0
-            y_end = tile_height
-            
-            # Add margin to focus on letter
-            margin_x = int(tile_width * 0.2)
-            margin_y = int(tile_height * 0.2)
-            x_start += margin_x
-            x_end -= margin_x
-            y_start += margin_y
-            y_end -= margin_y
+            # Calculate tile bounds with spacing
+            x_start = i * tile_width + spacing//2
+            x_end = x_start + effective_width
+            y_start = spacing//2
+            y_end = img_height - spacing//2
             
             # Extract tile image
             tile_img = img[y_start:y_end, x_start:x_end]
@@ -385,6 +380,12 @@ class AnagramsSolver:
             # Show tile for debugging
             cv2.imshow(f"Tile {i+1}", tile_img)
             cv2.waitKey(1)
+            
+            # Draw tile bounds on debug image
+            cv2.rectangle(debug_img, 
+                         (x_start, y_start), 
+                         (x_end, y_end), 
+                         (0, 255, 0), 2)
             
             try:
                 # Preprocess and get prediction
@@ -405,24 +406,15 @@ class AnagramsSolver:
                     else:
                         print(f"Low confidence detection for letter {i}: {letter.upper()} ({confidence:.2f})")
                 
-                # Draw debug info
+                # Draw letter and confidence on debug image
                 cv2.putText(
                     debug_img,
-                    letter.upper(),
-                    (x_start, y_start - 10),
+                    f"{letter.upper()} ({confidence:.2f})",
+                    (x_start + 5, y_start + 20),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
+                    0.5,
                     (0, 0, 255),
-                    2
-                )
-                
-                # Draw tile bounds
-                cv2.rectangle(
-                    debug_img,
-                    (x_start, y_start),
-                    (x_end, y_end),
-                    (0, 255, 0),
-                    2
+                    1
                 )
                 
             except Exception as e:
@@ -523,9 +515,27 @@ class AnagramsSolver:
         
         print("\nDetected letters:", " ".join(letter.upper() for letter in letters))
         
+        # Add delay to keep windows open
+        print("\nPress Enter to continue or Q to quit...")
+        # while True:
+        #     if keyboard.is_pressed('q'):
+        #         print("Quitting...")
+        #         return
+        #     if keyboard.is_pressed('enter'):
+        #         break
+        #     cv2.waitKey(1)
+        
         # Find all possible words
         words = self.find_words(letters)
         print(f"\nFound {len(words)} possible words")
+        
+        if len(words) == 0:
+            print("\nNo words found. Press Enter to quit...")
+            # while True:
+            #     if keyboard.is_pressed('enter') or keyboard.is_pressed('q'):
+            #         break
+            #     cv2.waitKey(1)
+            return
         
         # Sort words by length (longest first) then alphabetically
         words.sort(key=lambda x: (-len(x), x))
