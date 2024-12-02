@@ -18,10 +18,14 @@ from Quartz import (
     CGEventSourceCreate,
     kCGEventSourceStateHIDSystemState,
     kCGEventLeftMouseDown,
+    kCGEventLeftMouseDragged,
     kCGEventLeftMouseUp,
     kCGMouseButtonLeft,
     kCGHIDEventTap,
-    CGPointMake
+    CGPointMake,
+    CGEventSetIntegerValueField,
+    kCGMouseEventPressure,
+    kCGEventMouseMoved
 )
 
 # Import window management functions
@@ -174,143 +178,55 @@ class AnagramsSolver:
         cv2.imshow("Cropped Input", cropped)
         cv2.waitKey(1)
         
-        # Convert BGR to HSV
-        hsv = cv2.cvtColor(cropped, cv2.COLOR_BGR2HSV)
+        # Calculate grid dimensions
+        grid_width = width // 6  # 6 columns
+        grid_height = bottom_crop - top_crop
         
-        # Show HSV channels separately for debugging
-        h, s, v = cv2.split(hsv)
-        cv2.imshow("HSV - H Channel", h)
-        cv2.imshow("HSV - S Channel", s)
-        cv2.imshow("HSV - V Channel", v)
-        cv2.waitKey(1)
-        
-        # Sample the center of a letter tile for color calibration
-        center_y = cropped.shape[0] // 2
-        center_x = cropped.shape[1] // 2
-        sample_color = hsv[center_y, center_x]
-        print(f"Sample HSV color at center: {sample_color}")
-        
-        # Define beige color range for letter tiles (adjusted based on sample)
-        lower_beige = np.array([15, 0, 200])  # Very light beige
-        upper_beige = np.array([30, 50, 255])  # Allow higher brightness
-        beige_mask = cv2.inRange(hsv, lower_beige, upper_beige)
-        
-        # Show the initial mask
-        cv2.imshow("Initial Mask", beige_mask)
-        cv2.waitKey(1)
-        
-        # Apply morphological operations
-        kernel = np.ones((5, 5), np.uint8)  # Larger kernel
-        beige_mask = cv2.morphologyEx(beige_mask, cv2.MORPH_CLOSE, kernel)
-        beige_mask = cv2.morphologyEx(beige_mask, cv2.MORPH_OPEN, kernel)
-        
-        # Show the processed mask
-        cv2.imshow("Processed Mask", beige_mask)
-        cv2.waitKey(1)
-        
-        # Find contours
-        contours, _ = cv2.findContours(beige_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Draw all contours for debugging
-        contour_debug = cropped.copy()
-        cv2.drawContours(contour_debug, contours, -1, (0,255,0), 2)
-        cv2.imshow("All Contours", contour_debug)
-        cv2.waitKey(1)
-        
-        # Filter and sort contours
-        valid_contours = []
-        min_area = 500  # Increased minimum area
-        max_area = 5000  # Maximum area threshold
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if min_area < area < max_area:
-                x, y, w, h = cv2.boundingRect(contour)
-                aspect_ratio = w / h
-                if 0.8 < aspect_ratio < 1.2:  # Square-ish tiles
-                    valid_contours.append(contour)
-                    # Print debug info
-                    print(f"Valid contour - Area: {area}, Aspect ratio: {aspect_ratio:.2f}, Position: ({x}, {y})")
-        
-        print(f"Found {len(valid_contours)} valid contours")
-        
-        # Sort left to right
-        valid_contours = sorted(valid_contours, key=lambda c: cv2.boundingRect(c)[0])
-        
-        # Draw valid contours
-        valid_debug = cropped.copy()
-        cv2.drawContours(valid_debug, valid_contours, -1, (0,0,255), 2)
-        cv2.imshow("Valid Contours", valid_debug)
-        cv2.waitKey(1)
-        
-        # Store letter positions
+        # Calculate letter positions
         self.letter_positions = []
-        for contour in valid_contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            center_x = self.window_x + x + (w / 2)
-            center_y = self.window_y_orig + top_crop + y + (h / 2)
+        for i in range(6):
+            # Calculate center of each grid cell
+            center_x = self.window_x + (i * grid_width) + (grid_width // 2)
+            center_y = self.window_y_orig + top_crop + (grid_height // 2)
             self.letter_positions.append((center_x, center_y))
             
-            # Draw bounding box and center
-            cv2.rectangle(debug_img, (x, y + top_crop), (x + w, y + h + top_crop), (0, 255, 0), 2)
-            cv2.circle(debug_img, (int(x + w/2), int(y + h/2 + top_crop)), 2, (0, 0, 255), -1)
-            
-            # Draw tile number for debugging
-            cv2.putText(
-                debug_img,
-                str(len(self.letter_positions)),
-                (int(x + w/2), int(y + h/2 + top_crop) - 20),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (255, 0, 0),
-                1
-            )
+            # Draw debug visualization
+            x_start = i * grid_width
+            x_end = (i + 1) * grid_width
+            cv2.rectangle(debug_img, 
+                         (x_start, top_crop), 
+                         (x_end, bottom_crop), 
+                         (0, 255, 0), 2)
+            cv2.circle(debug_img, 
+                      (x_start + grid_width//2, top_crop + grid_height//2), 
+                      2, (0, 0, 255), -1)
+            cv2.putText(debug_img,
+                       str(i + 1),
+                       (x_start + grid_width//4, top_crop + grid_height//2),
+                       cv2.FONT_HERSHEY_SIMPLEX,
+                       0.5,
+                       (255, 0, 0),
+                       1)
         
         # Detect ENTER button
-        enter_top = int(height * 0.50)
-        enter_bottom = int(height * 0.60)
-        enter_area = img[enter_top:enter_bottom, :]
+        enter_top = int(height * 0.45)  # Moved up slightly
+        enter_bottom = int(height * 0.55)
+        enter_width = width // 3  # Button is about 1/3 of width
         
-        # Convert to HSV
-        enter_hsv = cv2.cvtColor(enter_area, cv2.COLOR_BGR2HSV)
+        # Calculate ENTER button position
+        enter_x = self.window_x + (width // 2)  # Center horizontally
+        enter_y = self.window_y_orig + (enter_top + enter_bottom) // 2
+        self.enter_position = (enter_x, enter_y)
         
-        # Define gray/purple color range for ENTER button
-        lower_gray = np.array([0, 0, 180])
-        upper_gray = np.array([180, 30, 255])
-        gray_mask = cv2.inRange(enter_hsv, lower_gray, upper_gray)
-        
-        cv2.imshow("ENTER Button Mask", gray_mask)
-        cv2.waitKey(1)
-        
-        # Find ENTER button contour
-        enter_contours, _ = cv2.findContours(gray_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if enter_contours:
-            # Find largest contour near center
-            center_x = width / 2
-            closest_contour = None
-            min_distance = float('inf')
-            
-            for contour in enter_contours:
-                area = cv2.contourArea(contour)
-                if area < 1000:  # Minimum area for ENTER button
-                    continue
-                
-                x, y, w, h = cv2.boundingRect(contour)
-                contour_center = x + (w / 2)
-                distance = abs(contour_center - center_x)
-                
-                if distance < min_distance:
-                    min_distance = distance
-                    closest_contour = contour
-            
-            if closest_contour is not None:
-                x, y, w, h = cv2.boundingRect(closest_contour)
-                self.enter_position = (
-                    self.window_x + x + (w / 2),
-                    self.window_y_orig + enter_top + (h / 2)
-                )
-                cv2.rectangle(debug_img, (x, y + enter_top), (x + w, y + h + enter_top), (255, 0, 0), 2)
-                cv2.circle(debug_img, (int(x + w/2), int(y + h/2 + enter_top)), 2, (255, 0, 0), -1)
+        # Draw ENTER button bounds
+        enter_left = (width - enter_width) // 2
+        cv2.rectangle(debug_img,
+                     (enter_left, enter_top),
+                     (enter_left + enter_width, enter_bottom),
+                     (255, 0, 0), 2)
+        cv2.circle(debug_img,
+                  (width//2, (enter_top + enter_bottom)//2),
+                  2, (255, 0, 0), -1)
         
         cv2.imshow("Debug View", debug_img)
         cv2.waitKey(1)
@@ -465,10 +381,14 @@ class AnagramsSolver:
                         # Convert to Quartz coordinates
                         quartz_y = screen_height - y
                         
+                        # Move to letter position first
+                        move_event = CGEventCreateMouseEvent(None, kCGEventMouseMoved, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
+                        CGEventPost(kCGHIDEventTap, move_event)
+                        time.sleep(0.1)
+                        
                         # Click letter
-                        point = CGPointMake(x, quartz_y)
-                        down_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, kCGMouseButtonLeft)
-                        up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, kCGMouseButtonLeft)
+                        down_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
+                        up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
                         
                         CGEventPost(kCGHIDEventTap, down_event)
                         time.sleep(0.1)
@@ -484,9 +404,14 @@ class AnagramsSolver:
                 x, y = self.enter_position
                 quartz_y = screen_height - y
                 
-                point = CGPointMake(x, quartz_y)
-                down_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, kCGMouseButtonLeft)
-                up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, kCGMouseButtonLeft)
+                # Move to ENTER button first
+                move_event = CGEventCreateMouseEvent(None, kCGEventMouseMoved, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
+                CGEventPost(kCGHIDEventTap, move_event)
+                time.sleep(0.1)
+                
+                # Click ENTER
+                down_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
+                up_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, CGPointMake(x, quartz_y), kCGMouseButtonLeft)
                 
                 CGEventPost(kCGHIDEventTap, down_event)
                 time.sleep(0.1)
