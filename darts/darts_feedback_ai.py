@@ -9,21 +9,20 @@ import subprocess
 import math
 from datetime import datetime
 import re
-from ppo_agent import DartsPPO
+import random
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
 
-# Prevent mouse from going to screen corners
 pyautogui.FAILSAFE = True
-pyautogui.PAUSE = 0.1  # Add small delay between pyautogui commands
 
 def parse_coords(coord_str):
-    """Parse coordinate string like '(162, 94)' into x,y tuple"""
     match = re.match(r'\((\d+),\s*(\d+)\)', coord_str)
     if match:
         return int(match.group(1)), int(match.group(2))
     return None, None
 
 def parse_score_text(score_text):
-    """Parse score text like '20 x3 = 60' into number and multiplier."""
     try:
         if isinstance(score_text, str) and 'x' in score_text:
             number = int(score_text.split('x')[0].strip())
@@ -33,563 +32,64 @@ def parse_score_text(score_text):
         pass
     return None, None
 
-def ease_out_quad(x):
-    """Easing function for smooth mouse movement."""
-    return 1 - (1 - x) * (1 - x)
-
 class DartsFeedbackAI:
     def __init__(self, mode="training"):
-        self.throw_history = {}  # Store throws for each target
-        self.best_throws = {}    # Store best throws for each target
-
-        # Set AI mode (training or competing)
         self.mode = mode
         print(f"AI initialized in {mode} mode")
 
-        # Map multiplier strings to numbers
-        self.multiplier_map = {
-            'single': 1,
-            'double': 2,
-            'triple': 3
-        }
-
-        # Our known working triple-20 throw - adjusted to aim higher
+        # Reference throw
         self.reference_throw = {
-            'start_x': int(1620),
-            'start_y': int(969),
-            'end_x': int(1620),
-            'end_y': int(419),  # Aim higher for triple zone
-            'duration': round(0.17, 3)  # Round to 3 decimal places
+            'start_x': 1620,
+            'start_y': 969,
+            'end_x': 1620,
+            'end_y': 469,
+            'duration': 0.17
         }
 
-        # Initialize PPO agent only in training mode
-        if mode == "training":
-            # State: [target_x, target_y, target_multiplier, prev_landing_x, prev_landing_y, prev_score]
-            # Action: [x_adjust, y_adjust]  # Only learn adjustments from reference throw
-            self.agent = DartsPPO(state_dim=6, action_dim=2)
+        # Normalization constants
+        # We'll scale x_adjust,y_adjust by 1/2000, landing_x, landing_y by 1/1000
+        self.x_scale = 2000.0
+        self.y_scale = 2000.0
+        self.landing_scale = 1000.0
 
-            # Training stats
-            self.episode_rewards = []
-            self.training_step = 0
-            self.best_reward = -float('inf')
+        # Data storage for supervised learning
+        # Each entry: input: normalized (x_adj/x_scale, y_adj/x_scale), output: normalized (landing_x/landing_scale, landing_y/landing_scale)
+        self.data_inputs = []
+        self.data_outputs = []
 
-            # Try to load best model if exists
-            try:
-                if os.path.exists('models/best_model.pth'):
-                    print("Loading existing model...")
-                    self.agent.load_model('models/best_model.pth')
-                else:
-                    print("No existing model found, starting fresh")
-            except Exception as e:
-                print(f"Error loading model: {e}, starting fresh")
-
-        # Initialize state
-        self.last_throw = None
-        self.current_target = None
-        self.last_target_coords = None
-        self.current_throw_params = None
-        self.last_state = None
-        self.last_action = None
-        self.last_log_prob = None
-
-        # Screen to board coordinate scaling
-        self.x_scale = 2.0
-        self.y_scale = 2.0
-
-        # Maximum adjustments
-        self.MAX_ADJUST = 200
-
-        # Screen boundaries
-        self.screen_width, self.screen_height = pyautogui.size()
-
-        # Create directories
-        for dir_path in ['models', 'throw_history']:
-            if not os.path.exists(dir_path):
-                os.makedirs(dir_path)
-
-        # Load throw history and best throws
+        # Best throws dictionary
+        self.best_throws = {}
         self.load_history()
-        self.load_best_throws()
 
-        # Training stats
-        self.episode_rewards = []
-        self.training_step = 0
-        self.best_reward = -float('inf')
+        # Build model
+        self.model = self.build_model()
 
-    def get_state(self, target_coords, target_multiplier):
-        """Convert current situation to state vector for PPO."""
-        # Default previous landing to target coords if no previous throw
-        prev_landing = self.last_throw if self.last_throw else target_coords
-        prev_score = 0.0 if not hasattr(self, 'last_score') else self.last_score
+        self.current_target = None
+        self.current_throw_params = None
+        self.last_score = 0.0
 
-        return np.array([
-            target_coords[0] / 350.0,  # Normalize coordinates
-            target_coords[1] / 350.0,
-            target_multiplier / 3.0,    # Normalize multiplier
-            prev_landing[0] / 350.0,
-            prev_landing[1] / 350.0,
-            prev_score
-        ], dtype=np.float32)
+    def build_model(self):
+        model = keras.Sequential([
+            layers.Input(shape=(2,)),
+            layers.Dense(64, activation='relu'),
+            layers.Dense(64, activation='relu'),
+            layers.Dense(2)  # Predict normalized landing_x, landing_y
+        ])
+        model.compile(optimizer='adam', loss='mse')
+        return model
 
-    def action_to_throw_params(self, action):
-        """Convert PPO action to throw parameters."""
-        # Scale actions to adjustments from reference throw
-        x_adjust = int(np.clip(action[0] * 100, -160, 160))  # Max adjustment of 160 pixels
-        y_adjust = int(np.clip(action[1] * 100, -160, 160))
-
-        # Calculate end positions relative to reference throw
-        end_x = int(self.reference_throw['end_x'] + x_adjust)
-        end_y = int(self.reference_throw['end_y'] + y_adjust)
-
-        return {
-            'start_x': int(self.reference_throw['start_x']),
-            'start_y': int(self.reference_throw['start_y']),
-            'end_x': end_x,
-            'end_y': end_y,
-            'duration': round(self.reference_throw['duration'], 3)  # Round to 3 decimal places
-        }
-
-    def calculate_reward(self, target_coords, landing_coords, target_multiplier, hit_multiplier, hit_number, target_number):
-        """Calculate reward for the throw."""
-        # Calculate distance error with more weight on vertical accuracy
-        error_x = (target_coords[0] - landing_coords[0]) / 350.0  # Normalize to [0,1]
-        error_y = (target_coords[1] - landing_coords[1]) / 350.0  # Normalize to [0,1]
-
-        # Much stronger weight on vertical accuracy
-        distance_error = math.sqrt(error_x**2 + (4.0 * error_y)**2)  # 4x weight on Y error
-
-        # Base reward based on distance (sharper falloff)
-        base_score = math.exp(-distance_error * 2.5)  # Adjusted for new error scale
-
-        # Reward for hitting any number
-        if hit_number > 0:
-            # Perfect hit
-            if hit_number == target_number and hit_multiplier == self.multiplier_map[target_multiplier]:
-                reward = 1.0
-            else:
-                # Partial reward based on multiplier match
-                if hit_multiplier == self.multiplier_map[target_multiplier]:
-                    # Right multiplier but wrong number - very good
-                    reward = 0.8 + (base_score * 0.2)
-                else:
-                    # Wrong multiplier - mostly distance based
-                    if hit_multiplier > self.multiplier_map[target_multiplier]:
-                        # Hitting higher multiplier than target - encourage this
-                        reward = base_score * 0.8
-                    else:
-                        # Hitting lower multiplier - discourage
-                        reward = base_score * 0.3
-
-                # Bonus for being close to target number
-                number_diff = abs(hit_number - target_number)
-                if number_diff <= 1:  # Adjacent number
-                    reward *= 1.2
-                elif number_diff <= 2:  # Close number
-                    reward *= 1.1
-        else:
-            # Miss (no number hit)
-            reward = base_score * 0.1  # Very low reward for misses
-
-        # Additional vertical accuracy bonus/penalty
-        if abs(error_y) < 0.1:  # Very good vertical accuracy
-            reward *= 1.3
-        elif abs(error_y) > 0.3:  # Poor vertical accuracy
-            reward *= 0.7
-
-        # Store throw data for both intended target and actual hit
-        self.store_throw_data(target_number, target_multiplier, hit_number, hit_multiplier,
-                              landing_coords, reward, self.current_throw_params)
-
-        return reward
-
-    def load_best_throws(self):
-        """Load best throws from file."""
-        try:
-            with open('throw_history/best_throws.json', 'r') as f:
-                self.best_throws = json.load(f)
-                # Convert all coordinates to integers and round durations
-                for key in self.best_throws:
-                    params = self.best_throws[key]['params']
-                    params['start_x'] = int(params['start_x'])
-                    params['start_y'] = int(params['start_y'])
-                    params['end_x'] = int(params['end_x'])
-                    params['end_y'] = int(params['end_y'])
-                    params['duration'] = round(params['duration'], 3)
-        except FileNotFoundError:
-            self.best_throws = {}
-
-    def save_best_throws(self):
-        """Save best throws to file."""
-        # Ensure all coordinates are integers and durations are rounded before saving
-        for key in self.best_throws:
-            params = self.best_throws[key]['params']
-            params['start_x'] = int(params['start_x'])
-            params['start_y'] = int(params['start_y'])
-            params['end_x'] = int(params['end_x'])
-            params['end_y'] = int(params['end_y'])
-            params['duration'] = round(params['duration'], 3)
-
+    def save_history(self):
         with open('throw_history/best_throws.json', 'w') as f:
             json.dump(self.best_throws, f, indent=2)
 
-    def store_throw_data(self, target_number, target_multiplier, hit_number, hit_multiplier,
-                         landing_coords, reward, throw_params):
-        """Store throw data for both intended target and actual hit."""
-        # Ensure coordinates are integers and duration is rounded
-        throw_params = throw_params.copy()
-        throw_params['start_x'] = int(throw_params['start_x'])
-        throw_params['start_y'] = int(throw_params['start_y'])
-        throw_params['end_x'] = int(throw_params['end_x'])
-        throw_params['end_y'] = int(throw_params['end_y'])
-        throw_params['duration'] = round(throw_params['duration'], 3)
-
-        # Store for intended target
-        target_key = self.get_target_key(target_number, target_multiplier)
-        if target_key not in self.throw_history:
-            self.throw_history[target_key] = []
-
-        throw_data = {
-            'params': throw_params,
-            'landing_coords': landing_coords,
-            'hit_number': hit_number,
-            'hit_multiplier': hit_multiplier,
-            'reward': reward,
-            'timestamp': datetime.now().isoformat()
-        }
-
-        # First add the new throw
-        self.throw_history[target_key].append(throw_data)
-
-        # Then sort and keep best N throws
-        max_history = 20
-        if len(self.throw_history[target_key]) > 0:
-            self.throw_history[target_key] = sorted(
-                self.throw_history[target_key],
-                key=lambda t: t.get('reward', 0),
-                reverse=True
-            )[:max_history]
-
-        # Update best throw for intended target if better
-        if target_key not in self.best_throws or reward > self.best_throws[target_key].get('reward', 0):
-            # Store complete throw data
-            self.best_throws[target_key] = throw_data.copy()
-            print(f"New best throw for {target_key}! Reward: {reward:.2f}")
-            self.save_best_throws()  # Save immediately when we get a new best
-
-        # If we hit a different number, store for that target too
-        if hit_number > 0 and (hit_number != target_number or hit_multiplier != self.multiplier_map[target_multiplier]):
-            hit_key = self.get_target_key(hit_number, 'single' if hit_multiplier == 1 else
-                                          'double' if hit_multiplier == 2 else 'triple')
-
-            if hit_key not in self.throw_history:
-                self.throw_history[hit_key] = []
-
-            # Add to history for the hit target
-            self.throw_history[hit_key].append(throw_data.copy())
-
-            # Sort and keep best N throws for hit target
-            if len(self.throw_history[hit_key]) > 0:
-                self.throw_history[hit_key] = sorted(
-                    self.throw_history[hit_key],
-                    key=lambda t: t.get('reward', 0),
-                    reverse=True
-                )[:max_history]
-
-            # Update best throw for hit target if better
-            if hit_key not in self.best_throws or reward > self.best_throws[hit_key].get('reward', 0):
-                self.best_throws[hit_key] = throw_data.copy()
-                print(f"New best throw for {hit_key}! (Unintended hit) Reward: {reward:.2f}")
-                self.save_best_throws()  # Save immediately when we get a new best
-
-        # Save updated history
-        self.save_history()
-
     def load_history(self):
-        """Load throw history."""
         try:
-            with open('throw_history/throws.json', 'r') as f:
-                self.throw_history = json.load(f)
-                # Convert all coordinates to integers and round durations in loaded history
-                for key in self.throw_history:
-                    for throw in self.throw_history[key]:
-                        params = throw['params']
-                        params['start_x'] = int(params['start_x'])
-                        params['start_y'] = int(params['start_y'])
-                        params['end_x'] = int(params['end_x'])
-                        params['end_y'] = int(params['end_y'])
-                        params['duration'] = round(params['duration'], 3)
+            with open('throw_history/best_throws.json', 'r') as f:
+                self.best_throws = json.load(f)
         except FileNotFoundError:
-            self.throw_history = {}
-
-    def save_history(self):
-        """Save throw history to file."""
-        # Ensure all coordinates are integers and durations are rounded before saving
-        for key in self.throw_history:
-            for throw in self.throw_history[key]:
-                params = throw['params']
-                params['start_x'] = int(params['start_x'])
-                params['start_y'] = int(params['start_y'])
-                params['end_x'] = int(params['end_x'])
-                params['end_y'] = int(params['end_y'])
-                params['duration'] = round(params['duration'], 3)
-
-        with open('throw_history/throws.json', 'w') as f:
-            json.dump(self.throw_history, f, indent=2)
-
-    def get_target_key(self, number, multiplier):
-        """Convert number and multiplier to consistent target key format."""
-        return f"{number}_{multiplier}"
-
-    def execute_throw(self, target_number, target_multiplier):
-        """Execute throw using best known parameters or PPO agent."""
-        self.current_target = (target_number, target_multiplier)
-        target_key = self.get_target_key(target_number, target_multiplier)
-
-        # Get target coordinates from dartboard UI coordinates
-        dartboard_coords = {
-            # Top section (20)
-            '20_single': [175, 69],
-            '20_double': [175, 41],
-            '20_triple': [175, 100],
-
-            # Right section (clockwise)
-            '1_single': [205, 75],
-            '1_double': [215, 45],
-            '1_triple': [200, 105],
-
-            '18_single': [237, 90],
-            '18_double': [255, 65],
-            '18_triple': [220, 114],
-
-            '4_single': [260, 117],
-            '4_double': [288, 95],
-            '4_triple': [237, 129],
-
-            '13_single': [277, 143],
-            '13_double': [305, 133],
-            '13_triple': [248, 152],
-
-            '6_single': [280, 175],
-            '6_double': [310, 175],
-            '6_triple': [250, 175],
-
-            '10_single': [275, 205],
-            '10_double': [300, 215],
-            '10_triple': [248, 198],
-
-            '15_single': [260, 235],
-            '15_double': [287, 254],
-            '15_triple': [237, 221],
-
-            '2_single': [240, 260],
-            '2_double': [255, 285],
-            '2_triple': [220, 235],
-
-            '17_single': [205, 275],
-            '17_double': [218, 305],
-            '17_triple': [200, 250],
-
-            '3_single': [175, 285],
-            '3_double': [175, 315],
-            '3_triple': [175, 250],
-
-            # Left section (mirrored coordinates)
-            '5_single': [145, 75],
-            '5_double': [135, 45],
-            '5_triple': [154, 103],
-
-            '12_single': [112, 87],
-            '12_double': [95, 65],
-            '12_triple': [130, 115],
-
-            '9_single': [90, 110],
-            '9_double': [65, 95],
-            '9_triple': [115, 130],
-
-            '14_single': [75, 145],
-            '14_double': [45, 135],
-            '14_triple': [100, 150],
-
-            '11_single': [75, 175],
-            '11_double': [40, 175],
-            '11_triple': [100, 175],
-
-            '8_single': [75, 210],
-            '8_double': [45, 220],
-            '8_triple': [103, 200],
-
-            '16_single': [90, 230],
-            '16_double': [65, 255],
-            '16_triple': [115, 220],
-
-            '7_single': [115, 260],
-            '7_double': [95, 285],
-            '7_triple': [130, 235],
-
-            '19_single': [145, 275],
-            '19_double': [130, 305],
-            '19_triple': [150, 250],
-
-            # Center
-            'bullseye': [175, 175],
-            'double_bullseye': [175, 175]
-        }
-
-        # Get target coordinates
-        target_coords = dartboard_coords.get(target_key, [175, 175])
-
-        # In competing mode, strictly use best throw parameters
-        if self.mode == "competing":
-            if target_key in self.best_throws:
-                # Use exact parameters from best throw with integer coordinates
-                throw_params = self.best_throws[target_key]['params'].copy()
-                throw_params['start_x'] = int(throw_params['start_x'])
-                throw_params['start_y'] = int(throw_params['start_y'])
-                throw_params['end_x'] = int(throw_params['end_x'])
-                throw_params['end_y'] = int(throw_params['end_y'])
-                throw_params['duration'] = round(throw_params['duration'], 3)
-                print(f"Using best throw for {target_key} (reward: {self.best_throws[target_key]['reward']:.2f})")
-            else:
-                # If no best throw, use reference throw with integer coordinates
-                throw_params = {
-                    'start_x': int(self.reference_throw['start_x']),
-                    'start_y': int(self.reference_throw['start_y']),
-                    'end_x': int(self.reference_throw['end_x']),
-                    'end_y': int(self.reference_throw['end_y']),
-                    'duration': round(self.reference_throw['duration'], 3)
-                }
-                print(f"No best throw found for {target_key}, using reference")
-        else:
-            # Training mode - use PPO agent with exploration
-            state = self.get_state(target_coords, self.multiplier_map[target_multiplier])
-            action, log_prob = self.agent.select_action(state, deterministic=False)  # Allow exploration in training
-            throw_params = self.action_to_throw_params(action)  # Already ensures integer coordinates
-
-            # Store for training update
-            self.last_state = state
-            self.last_action = action
-            self.last_log_prob = log_prob
-
-        print(f"Executing throw with parameters: {throw_params}")
-
-        # Execute the throw with exact parameters
-        try:
-            self.focus_iphone_window()
-
-            # Force absolute positioning and add delays
-            pyautogui.FAILSAFE = True
-            pyautogui.PAUSE = 0.1
-
-            # Ensure mouse is completely still before starting
-            time.sleep(0.5)
-
-            # Get exact integer coordinates
-            start_x = int(throw_params['start_x'])
-            start_y = int(throw_params['start_y'])
-            end_x = int(throw_params['end_x'])
-            end_y = int(throw_params['end_y'])
-            duration = round(throw_params['duration'], 3)
-
-            # Move to start position
-            pyautogui.moveTo(
-                x=start_x,
-                y=start_y,
-                duration=0.1  # Small duration for precise positioning
-            )
-
-            # Small delay to ensure we're stable at start position
-            time.sleep(0.2)
-
-            # Press mouse button
-            pyautogui.mouseDown()
-
-            # Execute the drag using absolute coordinates with easing
-            pyautogui.dragTo(
-                x=end_x,
-                y=end_y,
-                duration=duration,
-                tween=ease_out_quad,
-                button='left'
-            )
-
-            # Release mouse button (dragTo should do this, but let's be explicit)
-            pyautogui.mouseUp()
-
-            # Ensure mouse is completely still after throw
-            time.sleep(0.2)
-
-            self.current_throw_params = throw_params
-
-        except Exception as e:
-            print(f"Error executing throw: {e}")
-
-        return throw_params
-
-    def train(self, target_coords, landing_coords, hit_number, hit_multiplier):
-        """Train PPO agent on throw result."""
-        if self.mode != "training":
-            return
-
-        # Check if we have all required data
-        if (self.last_state is None or
-            self.last_action is None or
-            self.last_log_prob is None):
-            print("Missing required training data")
-            return
-
-        # Calculate reward
-        reward = self.calculate_reward(
-            target_coords,
-            landing_coords,
-            self.current_target[1],  # target_multiplier
-            hit_multiplier,
-            hit_number,
-            self.current_target[0]   # target_number
-        )
-
-        # Get next state
-        next_state = self.get_state(target_coords, self.multiplier_map[self.current_target[1]])
-
-        # Store experience
-        self.agent.store_experience(
-            self.last_state,
-            self.last_action,
-            reward,
-            next_state,
-            self.last_log_prob
-        )
-
-        # Update training stats
-        self.episode_rewards.append(reward)
-        self.training_step += 1
-
-        # Train after every throw with more epochs
-        print("\nTraining PPO agent...")
-        # Use more experiences for training
-        batch_size = min(32, len(self.agent.experiences))  # Increased from 16
-        self.agent.train(batch_size=batch_size, epochs=15)  # Increased epochs
-
-        # Calculate average reward over last 5 throws
-        window_size = min(5, len(self.episode_rewards))  # Increased from 3
-        avg_reward = sum(self.episode_rewards[-window_size:]) / window_size
-        print(f"Average reward over last {window_size} throws: {avg_reward:.2f}")
-
-        # Save if significantly improved (within 98% of best)
-        if avg_reward > self.best_reward * 0.98:  # More selective saving
-            if avg_reward > self.best_reward:  # Only update best if truly better
-                self.best_reward = avg_reward
-                print(f"New best reward: {avg_reward:.2f}")
-            self.agent.save_model('models/best_model.pth')
-            print(f"New model saved with average reward: {avg_reward:.2f}")
-
-        # Update state
-        self.last_throw = landing_coords
-        self.last_score = reward
-
-        return reward
+            self.best_throws = {}
 
     def focus_iphone_window(self):
-        """Focus the iPhone Mirroring window."""
         script = """
         tell application "System Events"
             tell application process "iPhone Mirroring"
@@ -598,10 +98,8 @@ class DartsFeedbackAI:
         end tell
         """
         subprocess.run(["osascript", "-e", script], capture_output=True)
-        time.sleep(0.5)
 
     def move_iphone_mirror_to_corner(self):
-        """Move iPhone Mirroring window to bottom right corner."""
         try:
             script = """
             tell application "System Events"
@@ -612,13 +110,194 @@ class DartsFeedbackAI:
                 end tell
             end tell
             """
-            result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+            subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
             time.sleep(1)
         except Exception as e:
             print(f"Warning: Could not move iPhone window: {e}")
 
+    def normalize_input(self, x_adj, y_adj):
+        return np.array([x_adj/self.x_scale, y_adj/self.y_scale], dtype=np.float32)
+
+    def normalize_output(self, landing_x, landing_y):
+        return np.array([landing_x/self.landing_scale, landing_y/self.landing_scale], dtype=np.float32)
+
+    def denormalize_output(self, nx, ny):
+        return nx * self.landing_scale, ny * self.landing_scale
+
+    def predict_landing(self, x_adj, y_adj):
+        if len(self.data_inputs) < 5:
+            # Not enough data, just guess landing = reference center
+            return 175.0, 100.0
+
+        inp = self.normalize_input(x_adj, y_adj).reshape(1,-1)
+        pred_norm = self.model.predict(inp, verbose=0)[0]
+        landing_x, landing_y = self.denormalize_output(pred_norm[0], pred_norm[1])
+        return landing_x, landing_y
+
+    def retrain_model(self):
+        if len(self.data_inputs) < 10:
+            return
+        X = np.array(self.data_inputs, dtype=np.float32)
+        Y = np.array(self.data_outputs, dtype=np.float32)
+        # Retrain model from scratch on all data for simplicity
+        self.model = self.build_model()
+        self.model.fit(X, Y, epochs=10, verbose=0)
+        print("Forward model retrained on all collected data.")
+
+    def store_throw_data(self, x_adj, y_adj, landing_x, landing_y, target_key, reward, throw_params):
+        # Add to dataset
+        self.data_inputs.append(self.normalize_input(x_adj, y_adj))
+        self.data_outputs.append(self.normalize_output(landing_x, landing_y))
+
+        # Update best throw if better
+        if target_key not in self.best_throws or reward > self.best_throws[target_key].get('reward',0):
+            self.best_throws[target_key] = {
+                'params': throw_params.copy(),
+                'reward': reward,
+                'timestamp': datetime.now().isoformat()
+            }
+            print(f"New best throw for {target_key}! Reward: {reward:.2f}")
+
+        self.save_history()
+        # Retrain model
+        self.retrain_model()
+
+    def calculate_reward(self, target_coords, landing_coords, hit_number, hit_multiplier, target_number, target_multiplier, throw_failed=False):
+        if throw_failed:
+            return -0.5
+        dx = target_coords[0]-landing_coords[0]
+        dy = target_coords[1]-landing_coords[1]
+        dist = math.sqrt(dx*dx+dy*dy)
+        accuracy = math.exp(-dist/20.0)
+        if hit_number > 0:
+            number_val = hit_number / 20.0
+            multiplier_val = hit_multiplier / 3.0
+            quality = (number_val + multiplier_val)*0.5
+            # If exact target
+            t_mult = {'single':1,'double':2,'triple':3}[target_multiplier]
+            if hit_number == target_number and hit_multiplier == t_mult:
+                quality *= 2.0
+            return (accuracy+quality)*0.5
+        else:
+            return accuracy*0.5
+
+    def gradient_based_inverse(self, target_x, target_y, steps=30, lr=0.1):
+        # If too few data points, just random guess
+        if len(self.data_inputs) < 50:
+            x_adj = random.uniform(-200,200)
+            y_adj = random.uniform(-200,200)
+            return x_adj, y_adj
+
+        # Use TensorFlow gradients to solve inverse problem
+        # We define a variable for (x_adj, y_adj) normalized
+        x_var = tf.Variable(0.0, dtype=tf.float32)
+        y_var = tf.Variable(0.0, dtype=tf.float32)
+
+        # We'll do gradient descent to minimize error
+        target_norm_x = target_x/self.landing_scale
+        target_norm_y = target_y/self.landing_scale
+
+        # We'll pass x_var,y_var through model and compute MSE
+        for i in range(steps):
+            with tf.GradientTape() as tape:
+                inp = tf.stack([x_var, y_var])[None,:]
+                pred = self.model(inp, training=False)[0]
+                loss = tf.reduce_mean((pred[0]-target_norm_x)**2+(pred[1]-target_norm_y)**2)
+            grads = tape.gradient(loss, [x_var,y_var])
+            x_var.assign_sub(lr * grads[0])
+            y_var.assign_sub(lr * grads[1])
+
+        # Denormalize x_adj,y_adj
+        x_adj = float(x_var.numpy()*self.x_scale)
+        y_adj = float(y_var.numpy()*self.y_scale)
+        return x_adj, y_adj
+
+    def execute_throw(self, target_number, target_multiplier):
+        self.current_target = (target_number, target_multiplier)
+        target_key = f"{target_number}_{target_multiplier}"
+
+        # We'll define some known coordinates for a few targets
+        dartboard_coords = {
+            '20_triple':[175,100],
+            '3_triple':[175,250],
+            '9_triple':[115,130],
+            '2_triple':[220,235],
+        }
+        target_coords = dartboard_coords.get(target_key, [175,175])
+
+        if self.mode == "competing":
+            # Use best known or gradient-based inverse if not known
+            if target_key in self.best_throws:
+                throw_params = self.best_throws[target_key]['params'].copy()
+                print(f"Using best throw for {target_key}")
+            else:
+                # Solve inverse using gradient-based approach
+                x_adj, y_adj = self.gradient_based_inverse(target_coords[0], target_coords[1])
+                end_x = int(self.reference_throw['end_x'] + x_adj)
+                end_y = int(self.reference_throw['end_y'] - y_adj)
+                throw_params = {
+                    'start_x': self.reference_throw['start_x'],
+                    'start_y': self.reference_throw['start_y'],
+                    'end_x': end_x,
+                    'end_y': end_y,
+                    'duration': self.reference_throw['duration']
+                }
+                print(f"No best known for {target_key}, guessed via inverse.")
+        else:
+            # Training mode: Always use gradient-based inverse (once enough data), else random
+            if len(self.data_inputs) < 50:
+                # Not enough data to trust gradient approach, random exploration
+                x_adj = random.uniform(-300,300)
+                y_adj = random.uniform(-300,300)
+            else:
+                x_adj, y_adj = self.gradient_based_inverse(target_coords[0], target_coords[1])
+
+            end_x = int(self.reference_throw['end_x'] + x_adj)
+            end_y = int(self.reference_throw['end_y'] - y_adj)
+            throw_params = {
+                'start_x': self.reference_throw['start_x'],
+                'start_y': self.reference_throw['start_y'],
+                'end_x': end_x,
+                'end_y': end_y,
+                'duration': self.reference_throw['duration']
+            }
+
+        print(f"Executing throw with parameters: {throw_params}")
+        self.focus_iphone_window()
+        time.sleep(0.3)
+        pyautogui.moveTo(throw_params['start_x'], throw_params['start_y'], duration=0.1)
+        time.sleep(0.1)
+        pyautogui.dragTo(
+            throw_params['end_x'],
+            throw_params['end_y'],
+            duration=throw_params['duration'],
+            button='left'
+        )
+        self.current_throw_params = throw_params
+        return throw_params
+
+    def process_landing(self, target_coords, landing_coords, hit_number, hit_multiplier, throw_failed):
+        # Compute reward
+        reward = self.calculate_reward(
+            target_coords,
+            landing_coords,
+            hit_number,
+            hit_multiplier,
+            self.current_target[0],
+            self.current_target[1],
+            throw_failed=throw_failed
+        )
+
+        # Get offsets used
+        x_adj = self.current_throw_params['end_x'] - self.reference_throw['end_x']
+        y_adj = -(self.current_throw_params['end_y'] - self.reference_throw['end_y'])
+
+        target_key = f"{self.current_target[0]}_{self.current_target[1]}"
+        self.store_throw_data(x_adj, y_adj, landing_coords[0], landing_coords[1], target_key, reward, self.current_throw_params)
+        self.last_score = reward
+        return reward
+
 async def handle_client(websocket, path):
-    """Handle WebSocket connection from feedback UI."""
     mode = "training"
     if "?" in path and "mode=competing" in path.split("?")[1]:
         mode = "competing"
@@ -626,6 +305,7 @@ async def handle_client(websocket, path):
     ai = DartsFeedbackAI(mode=mode)
     print(f"Client connected in {mode} mode")
 
+    ai.focus_iphone_window()
     ai.move_iphone_mirror_to_corner()
 
     try:
@@ -636,15 +316,13 @@ async def handle_client(websocket, path):
             if data['type'] == 'throw_request':
                 target = data['data']
                 print(f"\nAiming for {target['multiplier']} {target['number']}")
-
                 throw_params = ai.execute_throw(
                     int(target['number']),
                     target['multiplier']
                 )
                 print(f"Throw executed with parameters: {throw_params}")
 
-            # Only process landing data in training mode
-            elif data['type'] == 'landing_data' and mode == "training":
+            elif data['type'] == 'landing_data':
                 target_x, target_y = parse_coords(data['data']['target'])
                 landing_x, landing_y = parse_coords(data['data']['landing'])
                 throw_failed = data['data'].get('throw_failed', False)
@@ -656,11 +334,12 @@ async def handle_client(websocket, path):
                     if 'x' in score_text:
                         hit_number, hit_multiplier = parse_score_text(score_text)
 
-                    reward = ai.train(
+                    reward = ai.process_landing(
                         [target_x, target_y],
                         [landing_x, landing_y],
                         hit_number or 0,
-                        hit_multiplier or 0
+                        hit_multiplier or 0,
+                        throw_failed
                     )
                     print(f"Training update completed (reward: {reward:.2f})")
 

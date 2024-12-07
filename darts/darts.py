@@ -37,17 +37,16 @@ NUMBER_OFFSETS = {
     5: -15,     # Slightly left
 }
 
-# Y-offsets from triple-20 position (positive is down)
+# Y-offsets from triple position (positive is down, negative is up)
 VERTICAL_OFFSETS = {
-    'single': 40,   # Lower than triple
-    'triple': 0,    # Our reference point
-    'double': 80    # Much lower
+    'single': 40,    # Below triple
+    'triple': 0,     # Reference point
+    'double': -40    # Above triple
 }
 
 class DartsAI:
     def __init__(self):
         self.model = self._build_model()
-        self.base_target_y = 0.203  # Our known good value for triple 20
         self.training_data = []
         self.current_adjustment = 0
         
@@ -137,7 +136,7 @@ def focus_iphone_window():
 
 def get_dart_and_target_positions(target_number, multiplier_type, y_offset_multiplier=1.0):
     """
-    Calculate the starting dart position and target position.
+    Calculate the starting dart position and target position using fixed reference points.
     """
     # Known screen resolution: 1800x1169
     screen_width = 1800
@@ -151,8 +150,6 @@ def get_dart_and_target_positions(target_number, multiplier_type, y_offset_multi
     window_x = screen_width - window_width
     window_y = screen_height - window_height
     
-    print(f"Window position: ({window_x}, {window_y}) with size {window_width}x{window_height}")
-    
     # Base center X coordinate (from our working triple-20)
     center_x = window_x + (window_width // 2) + 20
     
@@ -160,17 +157,22 @@ def get_dart_and_target_positions(target_number, multiplier_type, y_offset_multi
     target_x = center_x + NUMBER_OFFSETS[target_number]
     
     # Dart starts at the bottom center of the window
-    dart_x = window_x + (window_width // 2) + 20  # Keep our working offset
-    dart_y = window_y + int(window_height * 0.75)
+    dart_x = window_x + (window_width // 2) + 20
+    dart_y = window_y + int(window_height * 0.75)  # Keep the same start height
     
-    # Calculate Y position
-    base_y = window_y + int(window_height * 0.203)  # Our triple-20 reference
+    # Use fixed reference end Y position (like in darts_feedback_ai.py)
+    base_end_y = 419  # Known good reference point for triple zone
+    
+    # Apply vertical offset based on multiplier
     vertical_offset = VERTICAL_OFFSETS[multiplier_type]
-    ai_adjustment = int(window_height * 0.003 * y_offset_multiplier)
     
-    target_y = base_y + vertical_offset + ai_adjustment
+    # Apply AI adjustment (scaled down to prevent extreme adjustments)
+    ai_adjustment = int(500 * y_offset_multiplier)  # Maximum 50 pixel adjustment
     
-    return (dart_x, dart_y), (target_x, target_y)
+    # Calculate final end Y position
+    end_y = base_end_y + vertical_offset + ai_adjustment
+    
+    return (dart_x, dart_y), (target_x, end_y)
 
 def ease_out_quad(x):
     """
