@@ -1,850 +1,344 @@
 {
-  "throws": {},
   "20_triple": [
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1610,
-        "end_y": 394,
+        "end_x": 1704,
+        "end_y": 386,
         "duration": 0.17
       },
       "landing_coords": [
-        170,
-        111
+        224,
+        117
       ],
-      "hit_number": 20,
-      "hit_multiplier": 1,
-      "reward": 0.7259945433090156,
-      "timestamp": "2024-12-01T18:08:58.185631"
+      "hit_number": 18,
+      "hit_multiplier": 3,
+      "reward": 1.3011673700640898,
+      "timestamp": "2024-12-01T20:37:33.339314"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1592,
-        "end_y": 422,
+        "end_x": 1609,
+        "end_y": 404,
         "duration": 0.17
       },
       "landing_coords": [
-        157,
+        168,
+        97
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 3,
+      "reward": 1.3,
+      "timestamp": "2024-12-01T20:28:18.375522"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1586,
+        "end_y": 377,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        156,
+        102
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 3,
+      "reward": 1.2643994805198746,
+      "timestamp": "2024-12-01T19:21:53.839206"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1566,
+        "end_y": 405,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        147,
         104
       ],
       "hit_number": 5,
       "hit_multiplier": 3,
-      "reward": 0.6582881554744059,
-      "timestamp": "2024-12-01T17:52:13.456358"
+      "reward": 1.2465064010281273,
+      "timestamp": "2024-12-01T20:37:28.064972"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1626,
-        "end_y": 464,
+        "end_x": 1576,
+        "end_y": 382,
         "duration": 0.17
       },
       "landing_coords": [
-        178,
-        138
+        150,
+        106
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 3,
+      "reward": 1.2429871597484012,
+      "timestamp": "2024-12-01T19:18:14.091385"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1536,
+        "end_y": 395,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        128,
+        112
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 3,
+      "reward": 1.2009079705606536,
+      "timestamp": "2024-12-01T19:21:00.630168"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1542,
+        "end_y": 451,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        126,
+        116
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 3,
+      "reward": 1.1861946550178044,
+      "timestamp": "2024-12-01T19:19:37.119315"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1632,
+        "end_y": 434,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        179,
+        128
       ],
       "hit_number": 20,
       "hit_multiplier": 1,
-      "reward": 0.5666142448767286,
-      "timestamp": "2024-12-01T17:52:07.915671"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1674,
-        "end_y": 422,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        204,
-        129
-      ],
-      "hit_number": 18,
-      "hit_multiplier": 1,
-      "reward": 0.5284954639422228,
-      "timestamp": "2024-12-01T17:51:53.656562"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1617,
-        "end_y": 480,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        176,
-        151
-      ],
-      "hit_number": 20,
-      "hit_multiplier": 1,
-      "reward": 0.5135954578371045,
-      "timestamp": "2024-12-01T18:07:08.689934"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1676,
-        "end_y": 472,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        207,
-        133
-      ],
-      "hit_number": 18,
-      "hit_multiplier": 1,
-      "reward": 0.5077228942448329,
-      "timestamp": "2024-12-01T18:05:36.634715"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1611,
-        "end_y": 534,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        167,
-        178
-      ],
-      "hit_number": 25,
-      "hit_multiplier": 1,
-      "reward": 0.5000450363163098,
-      "timestamp": "2024-12-01T17:52:30.679003"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1646,
-        "end_y": 500,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        197,
-        143
-      ],
-      "hit_number": 18,
-      "hit_multiplier": 1,
-      "reward": 0.4986302029357695,
-      "timestamp": "2024-12-01T18:09:05.499234"
+      "reward": 0.6173186893394293,
+      "timestamp": "2024-12-07T16:30:36.315543"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
         "end_x": 1621,
-        "end_y": 497,
+        "end_y": 511,
         "duration": 0.17
       },
       "landing_coords": [
-        175,
-        156
+        176,
+        176
+      ],
+      "hit_number": 25,
+      "hit_multiplier": 2,
+      "reward": 0.5885082227720964,
+      "timestamp": "2024-12-07T16:36:07.780980"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1615,
+        "end_y": 461,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        172,
+        140
       ],
       "hit_number": 20,
       "hit_multiplier": 1,
-      "reward": 0.49647323064485305,
-      "timestamp": "2024-12-01T18:06:40.717031"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1562,
-        "end_y": 468,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        140,
-        125
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.44486518196953184,
-      "timestamp": "2024-12-01T18:05:47.187388"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1713,
-        "end_y": 394,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        234,
-        123
-      ],
-      "hit_number": 4,
-      "hit_multiplier": 3,
-      "reward": 0.4409093650322494,
-      "timestamp": "2024-12-01T17:52:18.800835"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1579,
-        "end_y": 450,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        148,
-        136
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.4366181632036329,
-      "timestamp": "2024-12-01T18:05:41.823704"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1565,
-        "end_y": 451,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        142,
-        131
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.4354953795118924,
-      "timestamp": "2024-12-01T17:51:31.222557"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1577,
-        "end_y": 412,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        149,
-        90
-      ],
-      "hit_number": 5,
-      "hit_multiplier": 1,
-      "reward": 0.4322571433989353,
-      "timestamp": "2024-12-01T17:51:04.588025"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1571,
-        "end_y": 449,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        143,
-        140
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.4128213094806379,
-      "timestamp": "2024-12-01T17:52:41.661637"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1650,
-        "end_y": 369,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        196,
-        90
-      ],
-      "hit_number": 1,
-      "hit_multiplier": 1,
-      "reward": 0.4098418047058427,
-      "timestamp": "2024-12-01T18:06:10.302594"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1605,
-        "end_y": 455,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        164,
-        130
-      ],
-      "hit_number": 5,
-      "hit_multiplier": 1,
-      "reward": 0.409727011042259,
-      "timestamp": "2024-12-01T18:08:39.331423"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1586,
-        "end_y": 464,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        149,
-        147
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.4041112839485824,
-      "timestamp": "2024-12-01T18:04:33.703289"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1579,
-        "end_y": 460,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        147,
-        146
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.4036356407992938,
-      "timestamp": "2024-12-01T17:52:36.615208"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1610,
-        "end_y": 569,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        167,
-        191
-      ],
-      "hit_number": 19,
-      "hit_multiplier": 1,
-      "reward": 0.4012795357265203,
-      "timestamp": "2024-12-01T18:08:33.470808"
-    }
-  ],
-  "5_single": [
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1577,
-        "end_y": 412,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        149,
-        90
-      ],
-      "hit_number": 5,
-      "hit_multiplier": 1,
-      "reward": 0.4322571433989353,
-      "timestamp": "2024-12-01T17:51:04.588025"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1605,
-        "end_y": 455,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        164,
-        130
-      ],
-      "hit_number": 5,
-      "hit_multiplier": 1,
-      "reward": 0.409727011042259,
-      "timestamp": "2024-12-01T18:08:39.331423"
+      "reward": 0.5574935958311754,
+      "timestamp": "2024-12-07T16:31:11.873361"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
         "end_x": 1568,
-        "end_y": 390,
+        "end_y": 397,
         "duration": 0.17
       },
       "landing_coords": [
-        145,
-        81
+        148,
+        113
       ],
       "hit_number": 5,
       "hit_multiplier": 1,
-      "reward": 0.3916035110260782,
-      "timestamp": "2024-12-01T18:06:15.660652"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1588,
-        "end_y": 436,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        160,
-        138
-      ],
-      "hit_number": 5,
-      "hit_multiplier": 1,
-      "reward": 0.366695796636326,
-      "timestamp": "2024-12-01T18:07:55.745791"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1614,
-        "end_y": 531,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        169,
-        153
-      ],
-      "hit_number": 5,
-      "hit_multiplier": 1,
-      "reward": 0.3178923038982365,
-      "timestamp": "2024-12-01T18:08:25.014281"
-    }
-  ],
-  "1_single": [
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1650,
-        "end_y": 369,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        196,
-        90
-      ],
-      "hit_number": 1,
-      "hit_multiplier": 1,
-      "reward": 0.4098418047058427,
-      "timestamp": "2024-12-01T18:06:10.302594"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1649,
-        "end_y": 424,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        190,
-        124
-      ],
-      "hit_number": 1,
-      "hit_multiplier": 1,
-      "reward": 0.3797183344464959,
-      "timestamp": "2024-12-01T17:51:22.796016"
+      "reward": 0.42042225139773887,
+      "timestamp": "2024-12-07T16:31:06.599297"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
         "end_x": 1647,
-        "end_y": 484,
+        "end_y": 412,
         "duration": 0.17
       },
       "landing_coords": [
-        190,
-        128
+        194,
+        113
       ],
       "hit_number": 1,
       "hit_multiplier": 1,
-      "reward": 0.3607228687114763,
-      "timestamp": "2024-12-01T18:06:21.854464"
+      "reward": 0.4113380151079281,
+      "timestamp": "2024-12-07T16:30:10.040328"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1641,
-        "end_y": 439,
+        "end_x": 1606,
+        "end_y": 548,
         "duration": 0.17
       },
       "landing_coords": [
-        186,
-        134
+        166,
+        200
       ],
-      "hit_number": 1,
+      "hit_number": 19,
       "hit_multiplier": 1,
-      "reward": 0.3405021097862928,
-      "timestamp": "2024-12-01T18:07:38.869758"
+      "reward": 0.38795617744703337,
+      "timestamp": "2024-12-07T16:36:27.810845"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1642,
-        "end_y": 424,
+        "end_x": 1607,
+        "end_y": 509,
         "duration": 0.17
       },
       "landing_coords": [
-        187,
-        135
+        164,
+        162
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 1,
+      "reward": 0.375250446787438,
+      "timestamp": "2024-12-07T16:30:18.437267"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1609,
+        "end_y": 480,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        165,
+        139
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.3693252425117332,
+      "timestamp": "2024-12-07T16:36:22.124361"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1621,
+        "end_y": 362,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        176,
+        90
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.35165997845000063,
+      "timestamp": "2024-12-01T19:18:34.647466"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1612,
+        "end_y": 370,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        170,
+        110
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.35091025927415076,
+      "timestamp": "2024-12-01T19:20:10.164893"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1629,
+        "end_y": 452,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        183,
+        136
       ],
       "hit_number": 1,
       "hit_multiplier": 1,
-      "reward": 0.33439029109385054,
-      "timestamp": "2024-12-01T18:09:29.033071"
+      "reward": 0.3349722302661171,
+      "timestamp": "2024-12-07T16:30:41.198271"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
         "end_x": 1639,
-        "end_y": 498,
+        "end_y": 447,
         "duration": 0.17
       },
       "landing_coords": [
-        187,
-        140
-      ],
-      "hit_number": 1,
-      "hit_multiplier": 1,
-      "reward": 0.3127218726133459,
-      "timestamp": "2024-12-01T18:05:01.403202"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1637,
-        "end_y": 435,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        186,
-        143
-      ],
-      "hit_number": 1,
-      "hit_multiplier": 1,
-      "reward": 0.30163531605617266,
-      "timestamp": "2024-12-01T18:09:34.295114"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1628,
-        "end_y": 481,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        183,
-        149
-      ],
-      "hit_number": 1,
-      "hit_multiplier": 1,
-      "reward": 0.2810697193037953,
-      "timestamp": "2024-12-01T18:07:28.799614"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1634,
-        "end_y": 493,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        182,
-        151
-      ],
-      "hit_number": 1,
-      "hit_multiplier": 1,
-      "reward": 0.274414834167823,
-      "timestamp": "2024-12-01T18:08:52.862173"
-    }
-  ],
-  "12_single": [
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1562,
-        "end_y": 468,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        140,
-        125
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.44486518196953184,
-      "timestamp": "2024-12-01T18:05:47.187388"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1579,
-        "end_y": 450,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        148,
+        184,
         136
       ],
-      "hit_number": 12,
+      "hit_number": 1,
       "hit_multiplier": 1,
-      "reward": 0.4366181632036329,
-      "timestamp": "2024-12-01T18:05:41.823704"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1565,
-        "end_y": 451,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        142,
-        131
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.4354953795118924,
-      "timestamp": "2024-12-01T17:51:31.222557"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1571,
-        "end_y": 449,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        143,
-        140
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.4128213094806379,
-      "timestamp": "2024-12-01T17:52:41.661637"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1586,
-        "end_y": 464,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        149,
-        147
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.4041112839485824,
-      "timestamp": "2024-12-01T18:04:33.703289"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1579,
-        "end_y": 460,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        147,
-        146
-      ],
-      "hit_number": 12,
-      "hit_multiplier": 1,
-      "reward": 0.4036356407992938,
-      "timestamp": "2024-12-01T17:52:36.615208"
-    }
-  ],
-  "14_single": [
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1574,
-        "end_y": 516,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        137,
-        162
-      ],
-      "hit_number": 14,
-      "hit_multiplier": 1,
-      "reward": 0.37510674228692176,
-      "timestamp": "2024-12-01T17:51:42.895232"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1552,
-        "end_y": 515,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        124,
-        158
-      ],
-      "hit_number": 14,
-      "hit_multiplier": 1,
-      "reward": 0.3650246580095955,
-      "timestamp": "2024-12-01T18:04:38.551105"
-    }
-  ],
-  "11_single": [
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1582,
-        "end_y": 513,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        141,
-        173
-      ],
-      "hit_number": 11,
-      "hit_multiplier": 1,
-      "reward": 0.32071819550895275,
-      "timestamp": "2024-12-01T18:08:01.028682"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1577,
-        "end_y": 510,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        133,
-        170
-      ],
-      "hit_number": 11,
-      "hit_multiplier": 1,
-      "reward": 0.31853724227292735,
-      "timestamp": "2024-12-01T17:51:48.496064"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1588,
-        "end_y": 547,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        138,
-        174
-      ],
-      "hit_number": 11,
-      "hit_multiplier": 1,
-      "reward": 0.3164089560533064,
-      "timestamp": "2024-12-01T18:09:23.067329"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1552,
-        "end_y": 528,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        126,
-        171
-      ],
-      "hit_number": 11,
-      "hit_multiplier": 1,
-      "reward": 0.30988952631642813,
-      "timestamp": "2024-12-01T18:07:01.658827"
-    }
-  ],
-  "18_single": [
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1674,
-        "end_y": 422,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        204,
-        129
-      ],
-      "hit_number": 18,
-      "hit_multiplier": 1,
-      "reward": 0.5284954639422228,
-      "timestamp": "2024-12-01T17:51:53.656562"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1676,
-        "end_y": 472,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        207,
-        133
-      ],
-      "hit_number": 18,
-      "hit_multiplier": 1,
-      "reward": 0.5077228942448329,
-      "timestamp": "2024-12-01T18:05:36.634715"
+      "reward": 0.3338757992106448,
+      "timestamp": "2024-12-07T16:31:16.360877"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
         "end_x": 1646,
-        "end_y": 500,
+        "end_y": 412,
         "duration": 0.17
       },
       "landing_coords": [
-        197,
-        143
+        189,
+        137
       ],
-      "hit_number": 18,
+      "hit_number": 1,
       "hit_multiplier": 1,
-      "reward": 0.4986302029357695,
-      "timestamp": "2024-12-01T18:09:05.499234"
+      "reward": 0.322483220742987,
+      "timestamp": "2024-12-07T16:30:04.341064"
     }
   ],
   "20_single": [
@@ -852,69 +346,547 @@
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1610,
-        "end_y": 394,
+        "end_x": 1632,
+        "end_y": 434,
         "duration": 0.17
       },
       "landing_coords": [
-        170,
-        111
+        179,
+        128
       ],
       "hit_number": 20,
       "hit_multiplier": 1,
-      "reward": 0.7259945433090156,
-      "timestamp": "2024-12-01T18:08:58.185631"
+      "reward": 0.6173186893394293,
+      "timestamp": "2024-12-07T16:30:36.315543"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1626,
-        "end_y": 464,
+        "end_x": 1615,
+        "end_y": 461,
         "duration": 0.17
       },
       "landing_coords": [
-        178,
-        138
+        172,
+        140
       ],
       "hit_number": 20,
       "hit_multiplier": 1,
-      "reward": 0.5666142448767286,
-      "timestamp": "2024-12-01T17:52:07.915671"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1617,
-        "end_y": 480,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        176,
-        151
-      ],
-      "hit_number": 20,
-      "hit_multiplier": 1,
-      "reward": 0.5135954578371045,
-      "timestamp": "2024-12-01T18:07:08.689934"
+      "reward": 0.5574935958311754,
+      "timestamp": "2024-12-07T16:31:11.873361"
     },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
         "end_x": 1621,
-        "end_y": 497,
+        "end_y": 362,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        176,
+        90
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.35165997845000063,
+      "timestamp": "2024-12-01T19:18:34.647466"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1612,
+        "end_y": 370,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        170,
+        110
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.35091025927415076,
+      "timestamp": "2024-12-01T19:20:10.164893"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1602,
+        "end_y": 394,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        164,
+        87
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.3201597952070642,
+      "timestamp": "2024-12-01T19:22:18.388949"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1619,
+        "end_y": 403,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        173,
+        85
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.304800918789432,
+      "timestamp": "2024-12-01T19:17:59.978781"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1617,
+        "end_y": 404,
         "duration": 0.17
       },
       "landing_coords": [
         175,
-        156
+        116
       ],
       "hit_number": 20,
       "hit_multiplier": 1,
-      "reward": 0.49647323064485305,
-      "timestamp": "2024-12-01T18:06:40.717031"
+      "reward": 0.29628606954453685,
+      "timestamp": "2024-12-01T19:22:10.984605"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1626,
+        "end_y": 345,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        182,
+        84
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.29547942095414337,
+      "timestamp": "2024-12-01T19:20:01.583673"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1615,
+        "end_y": 382,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        172,
+        82
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.27970524343036696,
+      "timestamp": "2024-12-01T19:21:35.362591"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1605,
+        "end_y": 415,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        170,
+        119
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.27162912083556384,
+      "timestamp": "2024-12-01T20:36:48.282313"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1611,
+        "end_y": 319,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        170,
+        80
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.26399356843223654,
+      "timestamp": "2024-12-01T19:21:06.738079"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1611,
+        "end_y": 340,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        169,
+        76
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.23543056514572158,
+      "timestamp": "2024-12-01T19:22:43.108361"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1624,
+        "end_y": 402,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        179,
+        125
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.22897466893907265,
+      "timestamp": "2024-12-01T19:22:49.998688"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1620,
+        "end_y": 476,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        176,
+        74
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.22264460780005352,
+      "timestamp": "2024-12-03T21:49:10.007798"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1647,
+        "end_y": 319,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        187,
+        65
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.13195187655734011,
+      "timestamp": "2024-12-01T19:21:58.863843"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1617,
+        "end_y": 444,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        177,
+        142
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.10842069677605094,
+      "timestamp": "2024-12-01T20:36:43.396174"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1629,
+        "end_y": 431,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        181,
+        56
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 1,
+      "reward": 0.10233286342333407,
+      "timestamp": "2024-12-03T21:47:28.658835"
+    }
+  ],
+  "5_single": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1568,
+        "end_y": 397,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        148,
+        113
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.42042225139773887,
+      "timestamp": "2024-12-07T16:31:06.599297"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1609,
+        "end_y": 480,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        165,
+        139
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.3693252425117332,
+      "timestamp": "2024-12-07T16:36:22.124361"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1579,
+        "end_y": 363,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        151,
+        91
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.2863169708888001,
+      "timestamp": "2024-12-01T20:41:36.162380"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1589,
+        "end_y": 406,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        157,
+        110
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.2850990218027793,
+      "timestamp": "2024-12-01T19:19:03.201146"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1599,
+        "end_y": 400,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        158,
+        88
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.27108208735097616,
+      "timestamp": "2024-12-01T19:18:48.737703"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1590,
+        "end_y": 391,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        158,
+        112
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.27108208735097616,
+      "timestamp": "2024-12-01T19:22:36.207676"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1583,
+        "end_y": 375,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        154,
+        112
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.26824824196440206,
+      "timestamp": "2024-12-01T19:23:06.684339"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1592,
+        "end_y": 408,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        160,
+        114
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.25776434991117214,
+      "timestamp": "2024-12-01T20:37:10.870874"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1602,
+        "end_y": 376,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        161,
+        115
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.2511532370696603,
+      "timestamp": "2024-12-01T19:18:42.143947"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1556,
+        "end_y": 355,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        138,
+        85
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.23571858044329064,
+      "timestamp": "2024-12-01T19:23:01.473435"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1590,
+        "end_y": 421,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        156,
+        117
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.23552772866384242,
+      "timestamp": "2024-12-01T19:18:08.438449"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1598,
+        "end_y": 407,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        163,
+        118
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.23154334552061775,
+      "timestamp": "2024-12-01T20:41:26.398282"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1565,
+        "end_y": 367,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        141,
+        67
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.14730640190296565,
+      "timestamp": "2024-12-01T20:47:16.585340"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1559,
+        "end_y": 362,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        135,
+        65
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.10603473999152717,
+      "timestamp": "2024-12-01T20:37:22.349518"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1602,
+        "end_y": 433,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        164,
+        141
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 1,
+      "reward": 0.09273276320572603,
+      "timestamp": "2024-12-01T20:37:05.906407"
     }
   ],
   "5_triple": [
@@ -922,37 +894,385 @@
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1592,
-        "end_y": 422,
+        "end_x": 1586,
+        "end_y": 377,
         "duration": 0.17
       },
       "landing_coords": [
-        157,
-        104
+        156,
+        102
       ],
       "hit_number": 5,
       "hit_multiplier": 3,
-      "reward": 0.6582881554744059,
-      "timestamp": "2024-12-01T17:52:13.456358"
-    }
-  ],
-  "4_triple": [
+      "reward": 1.2643994805198746,
+      "timestamp": "2024-12-01T19:21:53.839206"
+    },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1713,
-        "end_y": 394,
+        "end_x": 1566,
+        "end_y": 405,
         "duration": 0.17
       },
       "landing_coords": [
-        234,
-        123
+        147,
+        104
       ],
-      "hit_number": 4,
+      "hit_number": 5,
       "hit_multiplier": 3,
-      "reward": 0.4409093650322494,
-      "timestamp": "2024-12-01T17:52:18.800835"
+      "reward": 1.2465064010281273,
+      "timestamp": "2024-12-01T20:37:28.064972"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1576,
+        "end_y": 382,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        150,
+        106
+      ],
+      "hit_number": 5,
+      "hit_multiplier": 3,
+      "reward": 1.2429871597484012,
+      "timestamp": "2024-12-01T19:18:14.091385"
+    }
+  ],
+  "20_double": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1626,
+        "end_y": 327,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        176,
+        40
+      ],
+      "hit_number": 20,
+      "hit_multiplier": 2,
+      "reward": 0.06483226760438492,
+      "timestamp": "2024-12-01T19:19:09.974305"
+    }
+  ],
+  "12_single": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1607,
+        "end_y": 509,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        164,
+        162
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 1,
+      "reward": 0.375250446787438,
+      "timestamp": "2024-12-07T16:30:18.437267"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1520,
+        "end_y": 383,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        114,
+        103
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 1,
+      "reward": 0.250155210316131,
+      "timestamp": "2024-12-01T20:47:11.874258"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1540,
+        "end_y": 334,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        126,
+        87
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 1,
+      "reward": 0.23411084967639634,
+      "timestamp": "2024-12-01T19:22:24.112159"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1535,
+        "end_y": 356,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        122,
+        81
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 1,
+      "reward": 0.20120481024153783,
+      "timestamp": "2024-12-01T19:20:37.676622"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1574,
+        "end_y": 399,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        148,
+        131
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 1,
+      "reward": 0.15753994558526657,
+      "timestamp": "2024-12-01T19:20:32.215703"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1584,
+        "end_y": 430,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        151,
+        136
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 1,
+      "reward": 0.10574422259345202,
+      "timestamp": "2024-12-01T19:19:25.483103"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1591,
+        "end_y": 463,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        153,
+        150
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 1,
+      "reward": 0.07127845990056296,
+      "timestamp": "2024-12-01T20:28:28.355253"
+    }
+  ],
+  "12_triple": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1536,
+        "end_y": 395,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        128,
+        112
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 3,
+      "reward": 1.2009079705606536,
+      "timestamp": "2024-12-01T19:21:00.630168"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1542,
+        "end_y": 451,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        126,
+        116
+      ],
+      "hit_number": 12,
+      "hit_multiplier": 3,
+      "reward": 1.1861946550178044,
+      "timestamp": "2024-12-01T19:19:37.119315"
+    }
+  ],
+  "1_single": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1647,
+        "end_y": 412,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        194,
+        113
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 1,
+      "reward": 0.4113380151079281,
+      "timestamp": "2024-12-07T16:30:10.040328"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1629,
+        "end_y": 452,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        183,
+        136
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 1,
+      "reward": 0.3349722302661171,
+      "timestamp": "2024-12-07T16:30:41.198271"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1639,
+        "end_y": 447,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        184,
+        136
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 1,
+      "reward": 0.3338757992106448,
+      "timestamp": "2024-12-07T16:31:16.360877"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1646,
+        "end_y": 412,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        189,
+        137
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 1,
+      "reward": 0.322483220742987,
+      "timestamp": "2024-12-07T16:30:04.341064"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1639,
+        "end_y": 410,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        187,
+        116
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 1,
+      "reward": 0.2449459512917864,
+      "timestamp": "2024-12-01T20:36:59.245039"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1652,
+        "end_y": 361,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        194,
+        83
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 1,
+      "reward": 0.23552772866384242,
+      "timestamp": "2024-12-01T19:21:48.283981"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1667,
+        "end_y": 347,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        203,
+        83
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 1,
+      "reward": 0.23064215940626076,
+      "timestamp": "2024-12-01T20:28:23.323826"
+    },
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1660,
+        "end_y": 409,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        197,
+        124
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 1,
+      "reward": 0.1929935746030007,
+      "timestamp": "2024-12-01T19:20:24.803424"
+    }
+  ],
+  "18_single": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1681,
+        "end_y": 381,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        208,
+        118
+      ],
+      "hit_number": 18,
+      "hit_multiplier": 1,
+      "reward": 0.24364844804968502,
+      "timestamp": "2024-12-01T19:23:12.257171"
     }
   ],
   "25_single": [
@@ -960,56 +1280,111 @@
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1611,
-        "end_y": 534,
+        "end_x": 1613,
+        "end_y": 489,
         "duration": 0.17
       },
       "landing_coords": [
-        167,
-        178
+        173,
+        168
       ],
       "hit_number": 25,
       "hit_multiplier": 1,
-      "reward": 0.5000450363163098,
-      "timestamp": "2024-12-01T17:52:30.679003"
-    }
-  ],
-  "16_single": [
+      "reward": 0.04298592822270119,
+      "timestamp": "2024-12-01T20:41:31.497275"
+    },
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1586,
-        "end_y": 546,
+        "end_x": 1626,
+        "end_y": 500,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        178,
+        184
+      ],
+      "hit_number": 25,
+      "hit_multiplier": 1,
+      "reward": 0.027212782650540553,
+      "timestamp": "2024-12-01T20:36:38.742944"
+    }
+  ],
+  "18_triple": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1704,
+        "end_y": 386,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        224,
+        117
+      ],
+      "hit_number": 18,
+      "hit_multiplier": 3,
+      "reward": 1.3011673700640898,
+      "timestamp": "2024-12-01T20:37:33.339314"
+    }
+  ],
+  "9_single": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1520,
+        "end_y": 411,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        111,
+        116
+      ],
+      "hit_number": 9,
+      "hit_multiplier": 1,
+      "reward": 0.20431217843809035,
+      "timestamp": "2024-12-01T20:47:22.166835"
+    }
+  ],
+  "1_double": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1666,
+        "end_y": 437,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        215,
+        48
+      ],
+      "hit_number": 1,
+      "hit_multiplier": 2,
+      "reward": 0.06607860839067214,
+      "timestamp": "2024-12-03T21:48:12.187654"
+    }
+  ],
+  "5_double": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1588,
+        "end_y": 432,
         "duration": 0.17
       },
       "landing_coords": [
         151,
-        191
+        44
       ],
-      "hit_number": 16,
-      "hit_multiplier": 1,
-      "reward": 0.35945823099424196,
-      "timestamp": "2024-12-01T18:04:43.538088"
-    }
-  ],
-  "10_single": [
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1670,
-        "end_y": 539,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        208,
-        186
-      ],
-      "hit_number": 10,
-      "hit_multiplier": 1,
-      "reward": 0.2875611061173321,
-      "timestamp": "2024-12-01T18:05:08.824233"
+      "hit_number": 5,
+      "hit_multiplier": 2,
+      "reward": 0.06001682905777961,
+      "timestamp": "2024-12-03T21:49:35.775571"
     }
   ],
   "6_single": [
@@ -1017,109 +1392,37 @@
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1720,
-        "end_y": 529,
+        "end_x": 1691,
+        "end_y": 525,
         "duration": 0.17
       },
       "landing_coords": [
-        232,
+        229,
         167
       ],
       "hit_number": 6,
       "hit_multiplier": 1,
-      "reward": 0.24441444827529343,
-      "timestamp": "2024-12-01T18:05:14.541082"
+      "reward": 0.24777278735407668,
+      "timestamp": "2024-12-07T16:30:48.390255"
     }
   ],
-  "4_single": [
+  "25_double": [
     {
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1676,
-        "end_y": 522,
+        "end_x": 1621,
+        "end_y": 511,
         "duration": 0.17
       },
       "landing_coords": [
-        207,
-        149
+        176,
+        176
       ],
-      "hit_number": 4,
-      "hit_multiplier": 1,
-      "reward": 0.28844388625704065,
-      "timestamp": "2024-12-01T18:06:48.695787"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1720,
-        "end_y": 429,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        228,
-        135
-      ],
-      "hit_number": 4,
-      "hit_multiplier": 1,
-      "reward": 0.27371045648021175,
-      "timestamp": "2024-12-01T18:06:34.700037"
-    }
-  ],
-  "15_single": [
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1685,
-        "end_y": 543,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        212,
-        197
-      ],
-      "hit_number": 15,
-      "hit_multiplier": 1,
-      "reward": 0.33352729635785694,
-      "timestamp": "2024-12-01T18:07:16.689649"
-    }
-  ],
-  "13_single": [
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1692,
-        "end_y": 472,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        217,
-        156
-      ],
-      "hit_number": 13,
-      "hit_multiplier": 1,
-      "reward": 0.3691318153041366,
-      "timestamp": "2024-12-01T18:07:33.734446"
-    },
-    {
-      "params": {
-        "start_x": 1620,
-        "start_y": 969,
-        "end_x": 1644,
-        "end_y": 523,
-        "duration": 0.17
-      },
-      "landing_coords": [
-        199,
-        168
-      ],
-      "hit_number": 13,
-      "hit_multiplier": 1,
-      "reward": 0.3640344542605239,
-      "timestamp": "2024-12-01T18:07:50.617966"
+      "hit_number": 25,
+      "hit_multiplier": 2,
+      "reward": 0.5885082227720964,
+      "timestamp": "2024-12-07T16:36:07.780980"
     }
   ],
   "19_single": [
@@ -1127,18 +1430,37 @@
       "params": {
         "start_x": 1620,
         "start_y": 969,
-        "end_x": 1610,
-        "end_y": 569,
+        "end_x": 1606,
+        "end_y": 548,
         "duration": 0.17
       },
       "landing_coords": [
-        167,
-        191
+        166,
+        200
       ],
       "hit_number": 19,
       "hit_multiplier": 1,
-      "reward": 0.4012795357265203,
-      "timestamp": "2024-12-01T18:08:33.470808"
+      "reward": 0.38795617744703337,
+      "timestamp": "2024-12-07T16:36:27.810845"
+    }
+  ],
+  "8_single": [
+    {
+      "params": {
+        "start_x": 1620,
+        "start_y": 969,
+        "end_x": 1591,
+        "end_y": 524,
+        "duration": 0.17
+      },
+      "landing_coords": [
+        150,
+        183
+      ],
+      "hit_number": 8,
+      "hit_multiplier": 1,
+      "reward": 0.27165111487512655,
+      "timestamp": "2024-12-07T16:36:32.905703"
     }
   ]
 }
