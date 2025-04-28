@@ -4,13 +4,11 @@ import cv2
 import pyautogui
 import time
 from PIL import Image
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision.transforms as transforms
+# torch, nn, F, transforms moved into WordHuntSolver.__init__
 import pytesseract
 from typing import List, Tuple, Set, Dict
 import os
+# import pickle # Removed for reverting dictionary loading
 import subprocess
 import keyboard
 from Quartz import (
@@ -123,29 +121,11 @@ def focus_iphone_window():
         subprocess.run(["osascript", "-e", script], capture_output=True)
         time.sleep(0.1)
     except Exception as e:
-        print(f"Focus failed: {e}")
+            print(f"Focus failed: {e}")
 
-class LetterCNN(nn.Module):
-    def __init__(self):
-        super(LetterCNN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3)
-        self.conv2 = nn.Conv2d(32, 64, 3)
-        self.fc1 = nn.Linear(64 * 5 * 5, 128)
-        self.fc2 = nn.Linear(128, 26)  # 26 letters
-        self.dropout = nn.Dropout(0.5)
+# LetterCNN class definition moved into WordHuntSolver.__init__
 
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.max_pool2d(x, 2)
-        x = F.relu(self.conv2(x))
-        x = F.max_pool2d(x, 2)
-        x = x.view(-1, 64 * 5 * 5)
-        x = F.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return F.log_softmax(x, dim=1)
-
-def preprocess_for_cnn(cell_img: np.ndarray) -> torch.Tensor:
+def preprocess_for_cnn(cell_img: np.ndarray) -> 'torch.Tensor': # Use string literal for type hint
     """Preprocess image for CNN input."""
     # Convert to grayscale if needed
     if len(cell_img.shape) == 3:
@@ -192,12 +172,7 @@ def save_model(model, path):
     """Save the trained model."""
     torch.save(model.state_dict(), path)
 
-def load_model(path):
-    """Load a trained model."""
-    model = LetterCNN()
-    model.load_state_dict(torch.load(path))
-    model.eval()
-    return model
+# load_model function removed as model loading is handled in WordHuntSolver.__init__
 
 def create_mouse_event(type, point, source=None):
     """Create a mouse event with proper source state."""
@@ -232,13 +207,53 @@ class WordHuntSolver:
 
         print(f"Capture monitor: {self.monitor}")
 
+        # --- Deferred Imports and Model Definition ---
+        import torch
+        import torch.nn as nn
+        import torch.nn.functional as F
+        import torchvision.transforms as transforms
+
+        class LetterCNN(nn.Module):
+            def __init__(self):
+                super(LetterCNN, self).__init__()
+                self.conv1 = nn.Conv2d(1, 32, 3)
+                self.conv2 = nn.Conv2d(32, 64, 3)
+                self.fc1 = nn.Linear(64 * 5 * 5, 128)
+                self.fc2 = nn.Linear(128, 26)  # 26 letters
+                self.dropout = nn.Dropout(0.5)
+
+            def forward(self, x):
+                x = F.relu(self.conv1(x))
+                x = F.max_pool2d(x, 2)
+                x = F.relu(self.conv2(x))
+                x = F.max_pool2d(x, 2)
+                x = x.view(-1, 64 * 5 * 5)
+                x = F.relu(self.fc1(x))
+                x = self.dropout(x)
+                x = self.fc2(x)
+                return F.log_softmax(x, dim=1)
+        # --- End Deferred Imports ---
+
         # Initialize CNN model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = LetterCNN().to(self.device)
+        self.model = LetterCNN().to(self.device) # Uses the locally defined LetterCNN
+
+        # Store torch and transforms for use in other methods
+        self.torch = torch
+        self.transforms = transforms
 
         # Load trained weights
         try:
-            self.model.load_state_dict(torch.load('letter_recognition_model.pth'))
+            # Determine the absolute path to the model file relative to this script
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            model_path = os.path.join(script_dir, 'letter_recognition_model.pth')
+            print(f"Attempting to load model from: {model_path}")
+
+            # Specify map_location for device compatibility
+            map_location = self.device
+            if not os.path.exists(model_path):
+                 raise FileNotFoundError(f"Model file not found at {model_path}")
+            self.model.load_state_dict(torch.load(model_path, map_location=map_location))
             self.model.eval()
             print("Loaded trained model successfully")
         except Exception as e:
@@ -406,11 +421,15 @@ class WordHuntSolver:
 
         print(f"Board bounds: {self.board_bounds}")
         return self.board_bounds, board_img
+
     def load_dictionary(self) -> Tuple[Set[str], Trie]:
         """Load a dictionary of valid English words and build a trie."""
         words = set()
         trie = Trie()
-        dictionary_path = "dictionary.txt"
+        # Determine the absolute path to the dictionary file relative to this script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        dictionary_path = os.path.join(script_dir, "dictionary.txt")
+        print(f"Loading dictionary from {dictionary_path}...")
         if os.path.exists(dictionary_path):
             with open(dictionary_path, 'r') as f:
                 for line in f:
@@ -418,6 +437,9 @@ class WordHuntSolver:
                     if len(word) >= 3:  # Word Hunt requires words of 3+ letters
                         words.add(word)
                         trie.insert(word)
+            print(f"Dictionary loaded: {len(words)} words.")
+        else:
+            print(f"Warning: Dictionary file not found at {dictionary_path}")
         return words, trie
 
     def capture_board(self) -> np.ndarray:
@@ -494,13 +516,13 @@ class WordHuntSolver:
         cell_size_h = self.board_bounds['cell_size_h']
         debug_img = img.copy()
 
-        # Define transforms
-        transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Grayscale(),
-            transforms.Resize((28, 28)),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
+        # Define transforms using the instance variable
+        transform = self.transforms.Compose([
+            self.transforms.ToPILImage(),
+            self.transforms.Grayscale(),
+            self.transforms.Resize((28, 28)),
+            self.transforms.ToTensor(),
+            self.transforms.Normalize((0.5,), (0.5,))
         ])
 
         for i in range(self.GRID_SIZE):
@@ -525,10 +547,10 @@ class WordHuntSolver:
                     tensor = tensor.to(self.device)
 
                     # Get prediction
-                    with torch.no_grad():
+                    with self.torch.no_grad(): # Use self.torch
                         output = self.model(tensor)
                         pred_idx = output.argmax(dim=1).item()
-                        confidence = torch.exp(output.max()).item()
+                        confidence = self.torch.exp(output.max()).item() # Use self.torch
 
                         letter = self.idx_to_letter[pred_idx]
 
