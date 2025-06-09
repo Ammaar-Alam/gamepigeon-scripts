@@ -1,2 +1,5 @@
 *.part
 .code-split*
+*pyc
+*.DS_Store
+*.class
