@@ -17,6 +17,8 @@ from Quartz import (
     CGEventCreateMouseEvent,
     CGEventPost,
     CGEventSourceCreate,
+    CGEventSourceSetLocalEventsSuppressionInterval,
+    CGEventSourceSetLocalEventsFilterDuringSuppressionState,
     kCGEventSourceStateHIDSystemState,
     kCGEventLeftMouseDown,
     kCGEventLeftMouseDragged,
@@ -26,7 +28,9 @@ from Quartz import (
     CGPointMake,
     CGEventSetIntegerValueField,
     kCGMouseEventPressure,
-    kCGEventMouseMoved
+    kCGEventMouseMoved,
+    kCGEventFilterMaskPermitAllEvents,
+    kCGEventSuppressionStateSuppressionInterval
 )
 
 # Import additional required Quartz modules
@@ -313,8 +317,19 @@ class WordHuntSolver:
                 print(f"Debug window disabled: {e}")
                 self.no_windows = True
 
-        # Create event source for mouse control
+        # Create event source for mouse control and disable local suppression so Quartz
+        # does not coalesce our synthetic drag events.
         self.event_source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+        try:
+            CGEventSourceSetLocalEventsSuppressionInterval(self.event_source, 0.0)
+            CGEventSourceSetLocalEventsFilterDuringSuppressionState(
+                self.event_source,
+                kCGEventFilterMaskPermitAllEvents,
+                kCGEventSuppressionStateSuppressionInterval
+            )
+        except Exception as e:
+            if self.verbose:
+                print(f"Warning: suppression tuning failed: {e}")
 
         # Load dictionary and build trie
         self.dictionary, self.trie = self.load_dictionary()
@@ -388,7 +403,7 @@ class WordHuntSolver:
         """Synthesize a left click at Quartz screen coordinates."""
         def _post():
             try:
-                source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+                source = self.event_source
                 pt = CGPointMake(x, y)
                 down = create_mouse_event(kCGEventLeftMouseDown, pt, source)
                 CGEventPost(kCGHIDEventTap, down)
@@ -943,9 +958,6 @@ class WordHuntSolver:
           possible word is 16 without tile reuse.
         - Input files accept one word per line. Non A–Z characters are ignored.
         """
-        # Enforce game-legal minimum length (>= 3). No optional bounds.
-        min_len = 3
-
         def read_wordlist(path: str) -> Set[str]:
             result: Set[str] = set()
             try:
@@ -954,8 +966,8 @@ class WordHuntSolver:
                         line = raw.strip().lower()
                         if not line or line.startswith('#'):
                             continue
-                        # Only alphabetic words of length >= 3
-                        if line.isalpha() and (len(line) >= min_len):
+                        # Only alphabetic words
+                        if line.isalpha():
                             result.add(line)
             except FileNotFoundError:
                 return set()
@@ -966,7 +978,6 @@ class WordHuntSolver:
         dict_path = os.path.expanduser(os.getenv("WORDHUNT_DICTIONARY", default_dict))
 
         print(f"Loading dictionary from {dict_path}...")
-        print(f"Filtering dictionary: dropping words shorter than {min_len}")
         base_words = read_wordlist(dict_path)
 
         # User filters (env override or ~/.wordhunt)
@@ -1005,6 +1016,28 @@ class WordHuntSolver:
             key = w.replace('qu', 'q')
             trie.insert(key, store_word=w)
         return words, trie
+
+    @staticmethod
+    def _word_score(word: str) -> int:
+        """Return Word Hunt point value for a given word length."""
+        n = len(word)
+        if n <= 2:
+            return 0
+        if n == 3:
+            return 100
+        if n == 4:
+            return 400
+        if n == 5:
+            return 800
+        if n == 6:
+            return 1400
+        if n == 7:
+            return 1800
+        if n == 8:
+            return 2200
+        if n >= 9:
+            return 2600 + (n - 9) * 400
+        return 0
 
     def capture_board(self) -> np.ndarray:
         """Capture the game board using mss, rejecting start-screen thumbnail boards."""
@@ -1386,34 +1419,6 @@ class WordHuntSolver:
                         return [(self.GRID_SIZE - 1 - x, y) for x, y in path]
         return []
 
-    def _explain_words(self, candidates: List[str]):
-        """Explain why each candidate is or isn't swipable on the current board.
-
-        For each word, reports:
-        - in_dict: present in loaded dictionary (after filters)?
-        - letter_counts: whether the board has enough of each letter (multiset check)
-        - path: whether a valid adjacent path exists on the grid
-        """
-        try:
-            board_letters = []
-            for row in self.letters:
-                for c in row:
-                    if c:
-                        board_letters.append(c.lower())
-            from collections import Counter
-            board_count = Counter(board_letters)
-
-            for w in candidates:
-                w = (w or '').strip().lower()
-                if not w:
-                    continue
-                in_dict = (w in self.dictionary)
-                w_count = Counter(w.replace('qu', 'qu'))  # keep counts literal
-                enough = all(board_count.get(ch, 0) >= cnt for ch, cnt in w_count.items())
-                path = bool(self.find_word_path(w)) if enough else False
-                print(f"[explain] word='{w}' in_dict={in_dict} enough_letters={enough} path={path}")
-        except Exception as e:
-            print(f"[explain] error: {e}")
 
     def swipe_word(self, word: str):
         """Execute swipe motion to input a word using Quartz events."""
@@ -1457,7 +1462,7 @@ class WordHuntSolver:
 
             def _do_swipe():
                 # Create event source
-                source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState)
+                source = self.event_source
 
                 # Mouse down at start
                 start_point = CGPointMake(points[0][0], points[0][1])
@@ -1587,22 +1592,16 @@ class WordHuntSolver:
 
         # Find all possible words
         words = self.find_words()
+        potential_score = sum(self._word_score(w) for w in words)
         print(f"\nFound {len(words)} possible words")
+        print(f"Potential max score (all valid): {potential_score}")
         # Notify UI with words list
         try:
             self._emit('words_list', {'words': words})
+            self._emit('potential_score', {'score': potential_score})
         except Exception:
             pass
 
-        # Optional: explain specific words via env WORDHUNT_EXPLAIN_WORDS="comma,separated,list"
-        try:
-            explain_env = os.getenv('WORDHUNT_EXPLAIN_WORDS', '').strip()
-            if explain_env:
-                to_check = [w.strip() for w in explain_env.split(',') if w.strip()]
-                print("\nExplaining requested words...")
-                self._explain_words(to_check)
-        except Exception:
-            pass
 
         # Sort words by length (longest first) and alphabetically
         words.sort(key=lambda x: (-len(x), x))
