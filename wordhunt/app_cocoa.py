@@ -8,51 +8,69 @@ from Cocoa import (
     NSApplication, NSApp, NSWindow, NSButton, NSTextView, NSScrollView,
     NSMakeRect, NSApplicationActivationPolicyRegular,
     NSRunningApplication, NSApplicationActivateIgnoringOtherApps,
-    NSBezelStyleRounded, NSFont, NSTextField, NSTextFieldRoundedBezel,
+    NSBezelStyleRounded, NSFont, NSTextField,
     NSThread, NSProgressIndicator, NSView, NSStackView,
     NSLayoutConstraint, NSLayoutRelationEqual, NSLayoutAttributeLeading,
     NSLayoutAttributeTrailing, NSLayoutAttributeTop, NSLayoutAttributeBottom,
     NSLayoutAttributeWidth, NSLayoutAttributeHeight, NSLayoutAttributeNotAnAttribute,
-    NSLayoutPriorityDefaultLow, NSZeroRect
+    NSLayoutAttributeCenterX, NSLayoutAttributeCenterY, NSLayoutRelationGreaterThanOrEqual,
+    NSLayoutPriorityDefaultLow, NSLayoutPriorityDefaultHigh, NSLayoutPriorityRequired,
+    NSZeroRect, NSMakeSize, NSWindowStyleMaskTitled, NSWindowStyleMaskClosable,
+    NSWindowStyleMaskMiniaturizable, NSWindowStyleMaskResizable, NSBackingStoreBuffered
 )
 try:
-    # AppKit-only conveniences
     from AppKit import (
-        NSVisualEffectView, NSAppearance, NSAppearanceNameDarkAqua, NSColor, NSImage,
+        NSVisualEffectView, NSAppearance, NSColor, NSImage, NSImageView,
         NSImageScaleProportionallyDown, NSImageLeft, NSImageSymbolConfiguration,
-        NSVisualEffectMaterialSidebar, NSVisualEffectBlendingModeBehindWindow,
-        NSVisualEffectStateActive, NSEventModifierFlagCommand, NSProgressIndicatorStyleSpinning,
-        NSSegmentedControl, NSImageView,
-        NSUserInterfaceLayoutOrientationHorizontal, NSUserInterfaceLayoutOrientationVertical,
-        NSStackViewDistributionEqualSpacing, NSStackViewDistributionFillProportionally,
-        NSStackViewAlignmentCenterY, NSStackViewAlignmentLeading
+        NSVisualEffectMaterialUnderWindowBackground, NSVisualEffectMaterialContentBackground,
+        NSVisualEffectMaterialHUDWindow, NSVisualEffectBlendingModeBehindWindow,
+        NSVisualEffectBlendingModeWithinWindow, NSVisualEffectStateActive,
+        NSEventModifierFlagCommand, NSProgressIndicatorStyleSpinning,
+        NSSegmentedControl, NSUserInterfaceLayoutOrientationHorizontal,
+        NSUserInterfaceLayoutOrientationVertical, NSStackViewDistributionFill,
+        NSStackViewDistributionFillEqually, NSBorderlessWindowMask
     )
-except Exception:  # Fallback on older systems
+    # try to import alignment constants, fallback to numeric values
+    try:
+        from AppKit import NSStackViewAlignmentCenterY, NSStackViewAlignmentLeading, NSStackViewAlignmentTop
+    except ImportError:
+        # define fallback values for alignment constants
+        NSStackViewAlignmentTop = 1
+        NSStackViewAlignmentLeading = 1
+        NSStackViewAlignmentCenterY = 3
+except ImportError as e:
+    print(f"AppKit import error: {e}")
+    # set all to None as fallback
     NSVisualEffectView = None
     NSAppearance = None
-    NSAppearanceNameDarkAqua = None
     NSColor = None
     NSImage = None
+    NSImageView = None
     NSImageScaleProportionallyDown = 0
     NSImageLeft = 2
     NSImageSymbolConfiguration = None
-    NSVisualEffectMaterialSidebar = 0
+    NSVisualEffectMaterialUnderWindowBackground = 0
+    NSVisualEffectMaterialContentBackground = 0
+    NSVisualEffectMaterialHUDWindow = 0
     NSVisualEffectBlendingModeBehindWindow = 0
+    NSVisualEffectBlendingModeWithinWindow = 1
     NSVisualEffectStateActive = 1
     NSEventModifierFlagCommand = 1 << 20
-    NSSegmentedControl = None
-    NSImageView = None
     NSProgressIndicatorStyleSpinning = 1
+    NSSegmentedControl = None
     NSUserInterfaceLayoutOrientationHorizontal = 0
     NSUserInterfaceLayoutOrientationVertical = 1
-    NSStackViewDistributionEqualSpacing = 2
-    NSStackViewDistributionFillProportionally = 1
-    NSStackViewAlignmentCenterY = 3
+    NSStackViewDistributionFill = 0
+    NSStackViewDistributionFillEqually = 2
+    NSStackViewAlignmentTop = 1
     NSStackViewAlignmentLeading = 1
+    NSStackViewAlignmentCenterY = 3
+    NSBorderlessWindowMask = 0
 from PyObjCTools import AppHelper
 from io import BytesIO
 from PIL import Image as PILImage
 import numpy as np
+import objc
 
 from wordhunt import WordHuntSolver, move_iphone_mirror_to_corner
 
@@ -63,7 +81,7 @@ class Logger:
         self.q = queue.Queue()
         self._orig = sys.stdout
         sys.stdout = self
-        # Mirror logs to file when launched from Finder (no console)
+        # mirror logs to file when launched from Finder
         try:
             logs_dir = os.path.expanduser('~/Library/Logs')
             os.makedirs(logs_dir, exist_ok=True)
@@ -89,7 +107,7 @@ class Logger:
             pass
 
     def pump(self):
-        # Drain queue and append on main thread to avoid AppKit threading issues
+        # drain queue and append on main thread
         payload = []
         while True:
             try:
@@ -108,7 +126,6 @@ class Logger:
             from PyObjCTools import AppHelper
             AppHelper.callAfter(_append)
         except Exception:
-            # Fallback (best effort)
             _append()
 
 
@@ -117,121 +134,114 @@ class App:
         self.app = NSApplication.sharedApplication()
         self.app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
 
+        # create modern window with proper style mask
+        styleMask = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | 
+                     NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
+        
         self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-            NSMakeRect(200.0, 300.0, 860.0, 520.0), 15, 2, False
+            NSMakeRect(100.0, 100.0, 920.0, 600.0),
+            styleMask,
+            NSBackingStoreBuffered,
+            False
         )
         self.window.setTitle_("WordHunt Solver")
-        try:
-            self.window.setMinSize_((760.0, 500.0))
-        except Exception:
-            pass
-
+        self.window.setMinSize_(NSMakeSize(760.0, 500.0))
+        
+        # enable full-size content view for modern look
+        self.window.setTitlebarAppearsTransparent_(False)
+        
         content = self.window.contentView()
 
-        # Appearance & glass background
-        try:
-            if NSAppearance is not None and NSAppearanceNameDarkAqua is not None:
-                self.window.setAppearance_(NSAppearance.appearanceNamed_(NSAppearanceNameDarkAqua))
-        except Exception:
-            pass
+        # set dark aqua appearance
+        self.window.setAppearance_(NSAppearance.appearanceNamed_("NSAppearanceNameDarkAqua"))
 
-        try:
-            if NSVisualEffectView is not None and os.getenv('WORDHUNT_NO_VIBRANCY') != '1':
-                self.bg = NSVisualEffectView.alloc().initWithFrame_(content.bounds())
-                try:
-                    self.bg.setMaterial_(NSVisualEffectMaterialSidebar)
-                    self.bg.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
-                    self.bg.setState_(NSVisualEffectStateActive)
-                except Exception:
-                    pass
-                self.bg.setAutoresizingMask_(18)  # width + height sizable
-                # Safer: simple addSubview to avoid ordering assertions
-                content.addSubview_(self.bg)
-        except Exception:
-            pass
+        # create vibrancy background - under window background material
+        self.bgEffect = NSVisualEffectView.alloc().initWithFrame_(content.bounds())
+        self.bgEffect.setMaterial_(NSVisualEffectMaterialUnderWindowBackground)
+        self.bgEffect.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
+        self.bgEffect.setState_(NSVisualEffectStateActive)
+        self.bgEffect.setAutoresizingMask_(18)  # width + height resizable
+        content.addSubview_(self.bgEffect)
 
-        content.setWantsLayer_(True)
-
-        # Root vertical stack providing adaptive layout
+        # root container with proper margins
         self.rootStack = NSStackView.alloc().initWithFrame_(NSZeroRect)
         self.rootStack.setOrientation_(NSUserInterfaceLayoutOrientationVertical)
-        self.rootStack.setSpacing_(18.0)
+        self.rootStack.setSpacing_(20.0)
         self.rootStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
         content.addSubview_(self.rootStack)
 
-        inset = 24.0
-        constraints = [
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.rootStack, NSLayoutAttributeLeading, NSLayoutRelationEqual, content, NSLayoutAttributeLeading, 1.0, inset),
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.rootStack, NSLayoutAttributeTrailing, NSLayoutRelationEqual, content, NSLayoutAttributeTrailing, 1.0, -inset),
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.rootStack, NSLayoutAttributeTop, NSLayoutRelationEqual, content, NSLayoutAttributeTop, 1.0, inset),
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.rootStack, NSLayoutAttributeBottom, NSLayoutRelationEqual, content, NSLayoutAttributeBottom, 1.0, -inset)
-        ]
-        content.addConstraints_(constraints)
+        # pin root stack with standard macOS margins (20pt)
+        margin = 20.0
+        NSLayoutConstraint.activateConstraints_([
+            self.rootStack.leadingAnchor().constraintEqualToAnchor_constant_(content.leadingAnchor(), margin),
+            self.rootStack.trailingAnchor().constraintEqualToAnchor_constant_(content.trailingAnchor(), -margin),
+            self.rootStack.topAnchor().constraintEqualToAnchor_constant_(content.topAnchor(), margin),
+            self.rootStack.bottomAnchor().constraintEqualToAnchor_constant_(content.bottomAnchor(), -margin)
+        ])
 
-        # --- Toolbar buttons ---
-        self.controlsStack = NSStackView.alloc().initWithFrame_(NSZeroRect)
-        self.controlsStack.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
-        self.controlsStack.setSpacing_(12.0)
-        self.controlsStack.setDistribution_(NSStackViewDistributionFillProportionally)
-        self.controlsStack.setAlignment_(NSStackViewAlignmentCenterY)
-        self.rootStack.addArrangedSubview_(self.controlsStack)
+        # --- Toolbar section (no card, just buttons on transparent background) ---
+        self.toolbarStack = NSStackView.alloc().initWithFrame_(NSZeroRect)
+        self.toolbarStack.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
+        self.toolbarStack.setSpacing_(8.0)
+        self.toolbarStack.setAlignment_(NSStackViewAlignmentCenterY)
+        self.toolbarStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.rootStack.addArrangedSubview_(self.toolbarStack)
 
-        self.btnPerm   = self._button("Permissions", "onPerm:")
-        self.btnMove   = self._button("Move to Corner", "onMove:")
-        self.btnStart  = self._button("Start", "onStart:")
-        self.btnDry    = self._button("Dry Run", "onDry:")
-        self.btnCal    = self._button("Calibrate", "onCal:")
+        # create buttons with proper styling
+        self.btnStart = self._button("Start", "onStart:", isPrimary=True)
+        self.btnDry = self._button("Dry Run", "onDry:")
+        self.btnStop = self._button("Stop", "onStop:")
+        self.btnCal = self._button("Calibrate", "onCal:")
         self.btnReload = self._button("Reload Model", "onReload:")
-        self.btnStop   = self._button("Stop", "onStop:")
+        self.btnPerm = self._button("Permissions", "onPerm:")
+        self.btnMove = self._button("Move to Corner", "onMove:")
 
-        for b in (self.btnPerm, self.btnMove, self.btnStart, self.btnDry, self.btnCal, self.btnReload, self.btnStop):
-            self.controlsStack.addArrangedSubview_(b)
+        for btn in (self.btnStart, self.btnDry, self.btnStop):
+            self.toolbarStack.addArrangedSubview_(btn)
+        
+        # spacer to push remaining buttons to the right
+        spacer = NSView.alloc().initWithFrame_(NSZeroRect)
+        spacer.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        spacer.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationHorizontal)
+        self.toolbarStack.addArrangedSubview_(spacer)
 
-        # Icons & tint styling
-        self._style_toolbar_button(self.btnStart, symbol="play.fill", tint="systemGreen")
-        self._style_toolbar_button(self.btnDry, symbol="tortoise.fill", tint="systemTeal")
-        self._style_toolbar_button(self.btnPerm, symbol="lock.shield", tint="labelColor")
-        self._style_toolbar_button(self.btnMove, symbol="arrow.up.right.and.arrow.down.left", tint="labelColor")
-        self._style_toolbar_button(self.btnCal, symbol="ruler", tint="labelColor")
-        self._style_toolbar_button(self.btnReload, symbol="arrow.clockwise", tint="labelColor")
-        self._style_toolbar_button(self.btnStop, symbol="stop.fill", tint="systemRed")
+        for btn in (self.btnCal, self.btnReload, self.btnPerm, self.btnMove):
+            self.toolbarStack.addArrangedSubview_(btn)
 
-        # --- Tab row: dashboard/logs + status ---
-        self.tabRow = NSStackView.alloc().initWithFrame_(NSZeroRect)
-        self.tabRow.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
-        self.tabRow.setAlignment_(NSStackViewAlignmentCenterY)
-        self.tabRow.setSpacing_(12.0)
-        self.rootStack.addArrangedSubview_(self.tabRow)
+        # add icons
+        self._style_button(self.btnStart, "play.fill", NSColor.systemGreenColor())
+        self._style_button(self.btnDry, "hare.fill", NSColor.systemTealColor())
+        self._style_button(self.btnStop, "stop.fill", NSColor.systemRedColor())
+        self._style_button(self.btnCal, "ruler", NSColor.labelColor())
+        self._style_button(self.btnReload, "arrow.clockwise", NSColor.labelColor())
+        self._style_button(self.btnPerm, "lock.shield", NSColor.labelColor())
+        self._style_button(self.btnMove, "arrow.up.left.and.arrow.down.right", NSColor.labelColor())
 
-        if NSSegmentedControl is not None:
-            self.segment = NSSegmentedControl.segmentedControlWithLabels_trackingMode_target_action_(
-                ["Dashboard", "Logs"], 0, self, "onSegment:")
-            self.segment.setSelected_forSegment_(True, 0)
-        else:
-            self.segment = self._button("Dashboard", "onSegment:")
-        self.tabRow.addArrangedSubview_(self.segment)
-        try:
-            self.segment.setHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow + 5, NSUserInterfaceLayoutOrientationHorizontal)
-        except Exception:
-            pass
+        # --- Tab control and status row ---
+        self.tabStatusRow = NSStackView.alloc().initWithFrame_(NSZeroRect)
+        self.tabStatusRow.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
+        self.tabStatusRow.setAlignment_(NSStackViewAlignmentCenterY)
+        self.tabStatusRow.setSpacing_(12.0)
+        self.rootStack.addArrangedSubview_(self.tabStatusRow)
 
-        # Flexible spacer so status aligns right
-        self._spacer = NSView.alloc().initWithFrame_(NSZeroRect)
-        self._spacer.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.tabRow.addArrangedSubview_(self._spacer)
-        try:
-            self._spacer.setHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow, NSUserInterfaceLayoutOrientationHorizontal)
-        except Exception:
-            pass
+        self.segment = NSSegmentedControl.segmentedControlWithLabels_trackingMode_target_action_(
+            ["Dashboard", "Logs"], 0, self, "onSegment:")
+        self.segment.setSelected_forSegment_(True, 0)
+        self.segment.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.tabStatusRow.addArrangedSubview_(self.segment)
 
+        # spacer
+        statusSpacer = NSView.alloc().initWithFrame_(NSZeroRect)
+        statusSpacer.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        statusSpacer.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationHorizontal)
+        self.tabStatusRow.addArrangedSubview_(statusSpacer)
+
+        # status indicator
         self.statusStack = NSStackView.alloc().initWithFrame_(NSZeroRect)
         self.statusStack.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
-        self.statusStack.setSpacing_(6.0)
-        self.tabRow.addArrangedSubview_(self.statusStack)
+        self.statusStack.setSpacing_(8.0)
+        self.statusStack.setAlignment_(NSStackViewAlignmentCenterY)
+        self.tabStatusRow.addArrangedSubview_(self.statusStack)
 
         self.status = NSTextField.alloc().initWithFrame_(NSZeroRect)
         self.status.setBezeled_(False)
@@ -239,189 +249,182 @@ class App:
         self.status.setEditable_(False)
         self.status.setSelectable_(False)
         self.status.setStringValue_("Idle")
-        try:
-            if NSColor is not None and hasattr(NSColor, 'secondaryLabelColor'):
-                self.status.setTextColor_(NSColor.secondaryLabelColor())
-        except Exception:
-            pass
+        self.status.setFont_(NSFont.systemFontOfSize_(13.0))
+        self.status.setTextColor_(NSColor.secondaryLabelColor())
         self.statusStack.addArrangedSubview_(self.status)
 
-        self.spinner = NSProgressIndicator.alloc().initWithFrame_(NSZeroRect)
-        try:
-            self.spinner.setStyle_(NSProgressIndicatorStyleSpinning)
-        except Exception:
-            self.spinner.setStyle_(1)
+        self.spinner = NSProgressIndicator.alloc().initWithFrame_(NSMakeRect(0, 0, 16, 16))
+        self.spinner.setStyle_(NSProgressIndicatorStyleSpinning)
+        self.spinner.setControlSize_(1)  # small
         self.spinner.setDisplayedWhenStopped_(False)
+        self.spinner.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.statusStack.addArrangedSubview_(self.spinner)
 
-        # Ensure the content area stretches
+        # --- Content container (stretches to fill) ---
         self.contentContainer = NSView.alloc().initWithFrame_(NSZeroRect)
         self.contentContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        try:
-            self.contentContainer.setHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow, NSUserInterfaceLayoutOrientationVertical)
-        except Exception:
-            pass
         self.rootStack.addArrangedSubview_(self.contentContainer)
+        self.contentContainer.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationVertical)
 
-        # Dashboard and logs occupy the same container (toggled hidden)
-        self.dash = NSView.alloc().initWithFrame_(NSZeroRect)
-        self.dash.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.contentContainer.addSubview_(self.dash)
+        # dashboard view - use plain container with explicit constraints
+        self.dashView = NSView.alloc().initWithFrame_(NSZeroRect)
+        self.dashView.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.contentContainer.addSubview_(self.dashView)
 
-        self.scroll = NSScrollView.alloc().initWithFrame_(NSZeroRect)
-        self.scroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.text = NSTextView.alloc().initWithFrame_(NSZeroRect)
-        self.text.setEditable_(False)
-        self.text.setFont_(NSFont.userFixedPitchFontOfSize_(13))
-        try:
-            if NSColor is not None:
-                self.text.setTextColor_(NSColor.labelColor())
-                self.text.setBackgroundColor_(NSColor.clearColor())
-        except Exception:
-            pass
-        self.scroll.setDocumentView_(self.text)
-        self.scroll.setHasVerticalScroller_(True)
-        try:
-            self.scroll.setDrawsBackground_(False)
-        except Exception:
-            pass
-        self.scroll.setHidden_(True)
-        self.contentContainer.addSubview_(self.scroll)
+        NSLayoutConstraint.activateConstraints_([
+            self.dashView.leadingAnchor().constraintEqualToAnchor_(self.contentContainer.leadingAnchor()),
+            self.dashView.trailingAnchor().constraintEqualToAnchor_(self.contentContainer.trailingAnchor()),
+            self.dashView.topAnchor().constraintEqualToAnchor_(self.contentContainer.topAnchor()),
+            self.dashView.bottomAnchor().constraintEqualToAnchor_(self.contentContainer.bottomAnchor())
+        ])
 
-        # Pin dashboards to container edges
-        for view in (self.dash, self.scroll):
-            constraints = [
-                NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                    view, NSLayoutAttributeLeading, NSLayoutRelationEqual, self.contentContainer, NSLayoutAttributeLeading, 1.0, 0.0),
-                NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                    view, NSLayoutAttributeTrailing, NSLayoutRelationEqual, self.contentContainer, NSLayoutAttributeTrailing, 1.0, 0.0),
-                NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                    view, NSLayoutAttributeTop, NSLayoutRelationEqual, self.contentContainer, NSLayoutAttributeTop, 1.0, 0.0),
-                NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                    view, NSLayoutAttributeBottom, NSLayoutRelationEqual, self.contentContainer, NSLayoutAttributeBottom, 1.0, 0.0)
-            ]
-            self.contentContainer.addConstraints_(constraints)
-
-        # --- Dashboard layout ---
-        self.dashboardStack = NSStackView.alloc().initWithFrame_(NSZeroRect)
-        self.dashboardStack.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
-        self.dashboardStack.setSpacing_(24.0)
-        self.dashboardStack.setAlignment_(NSStackViewAlignmentLeading)
-        self.dashboardStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.dash.addSubview_(self.dashboardStack)
-
-        dashConstraints = [
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.dashboardStack, NSLayoutAttributeLeading, NSLayoutRelationEqual, self.dash, NSLayoutAttributeLeading, 1.0, 0.0),
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.dashboardStack, NSLayoutAttributeTrailing, NSLayoutRelationEqual, self.dash, NSLayoutAttributeTrailing, 1.0, 0.0),
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.dashboardStack, NSLayoutAttributeTop, NSLayoutRelationEqual, self.dash, NSLayoutAttributeTop, 1.0, 0.0),
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.dashboardStack, NSLayoutAttributeBottom, NSLayoutRelationEqual, self.dash, NSLayoutAttributeBottom, 1.0, 0.0)
-        ]
-        self.dash.addConstraints_(dashConstraints)
-
-        if NSImageView is not None:
-            self.boardView = NSImageView.alloc().initWithFrame_(NSZeroRect)
-            if NSImageScaleProportionallyDown:
-                self.boardView.setImageScaling_(NSImageScaleProportionallyDown)
-        else:
-            self.boardView = NSView.alloc().initWithFrame_(NSZeroRect)
+        # --- LEFT: Board preview (square, fixed size for now) ---
+        self.boardView = NSImageView.alloc().initWithFrame_(NSZeroRect)
+        self.boardView.setImageScaling_(NSImageScaleProportionallyDown)
         self.boardView.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.dashboardStack.addArrangedSubview_(self.boardView)
+        self.boardView.setWantsLayer_(True)
+        if self.boardView.layer():
+            self.boardView.layer().setCornerRadius_(12.0)
+            self.boardView.layer().setMasksToBounds_(True)
+            self.boardView.layer().setBorderWidth_(0.5)
+            self.boardView.layer().setBorderColor_(NSColor.separatorColor().CGColor())
+        self.dashView.addSubview_(self.boardView)
 
-        boardConstraints = [
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.boardView, NSLayoutAttributeWidth, NSLayoutRelationEqual, None, NSLayoutAttributeNotAnAttribute, 1.0, 280.0),
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.boardView, NSLayoutAttributeHeight, NSLayoutRelationEqual, None, NSLayoutAttributeNotAnAttribute, 1.0, 280.0)
-        ]
-        self.boardView.addConstraints_(boardConstraints)
+        # board constraints - square, fixed on left side
+        NSLayoutConstraint.activateConstraints_([
+            self.boardView.widthAnchor().constraintEqualToConstant_(400.0),
+            self.boardView.heightAnchor().constraintEqualToConstant_(400.0),
+            self.boardView.leadingAnchor().constraintEqualToAnchor_(self.dashView.leadingAnchor()),
+            self.boardView.topAnchor().constraintEqualToAnchor_(self.dashView.topAnchor())
+        ])
+        # prevent board from growing
+        self.boardView.setContentHuggingPriority_forOrientation_(NSLayoutPriorityRequired, NSUserInterfaceLayoutOrientationHorizontal)
+        self.boardView.setContentHuggingPriority_forOrientation_(NSLayoutPriorityRequired, NSUserInterfaceLayoutOrientationVertical)
 
+        # --- RIGHT: Info panel (fills remaining space) ---
         self.infoStack = NSStackView.alloc().initWithFrame_(NSZeroRect)
         self.infoStack.setOrientation_(NSUserInterfaceLayoutOrientationVertical)
-        self.infoStack.setSpacing_(12.0)
+        self.infoStack.setSpacing_(16.0)
         self.infoStack.setAlignment_(NSStackViewAlignmentLeading)
-        self.dashboardStack.addArrangedSubview_(self.infoStack)
+        self.infoStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.dashView.addSubview_(self.infoStack)
 
+        # position info stack to the right of the board
+        NSLayoutConstraint.activateConstraints_([
+            self.infoStack.leadingAnchor().constraintEqualToAnchor_constant_(self.boardView.trailingAnchor(), 24.0),
+            self.infoStack.trailingAnchor().constraintEqualToAnchor_(self.dashView.trailingAnchor()),
+            self.infoStack.topAnchor().constraintEqualToAnchor_(self.dashView.topAnchor()),
+            self.infoStack.bottomAnchor().constraintLessThanOrEqualToAnchor_(self.dashView.bottomAnchor())
+        ])
+        # let info stack fill remaining horizontal space
+        self.infoStack.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationHorizontal)
+
+        # current word display (prominent)
         self.currentWord = NSTextField.alloc().initWithFrame_(NSZeroRect)
         self.currentWord.setBezeled_(False)
         self.currentWord.setEditable_(False)
         self.currentWord.setDrawsBackground_(False)
-        self.currentWord.setFont_(NSFont.boldSystemFontOfSize_(30))
-        self.currentWord.setStringValue_("")
+        self.currentWord.setFont_(NSFont.systemFontOfSize_weight_(48.0, 0.4))  # bold
+        self.currentWord.setTextColor_(NSColor.labelColor())
+        self.currentWord.setStringValue_("—")
+        self.currentWord.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.infoStack.addArrangedSubview_(self.currentWord)
 
-        # Progress + counts row
-        self.metaRow = NSStackView.alloc().initWithFrame_(NSZeroRect)
-        self.metaRow.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
-        self.metaRow.setSpacing_(12.0)
-        self.infoStack.addArrangedSubview_(self.metaRow)
+        # stats row (compact)
+        self.statsRow = NSStackView.alloc().initWithFrame_(NSZeroRect)
+        self.statsRow.setOrientation_(NSUserInterfaceLayoutOrientationVertical)
+        self.statsRow.setSpacing_(6.0)
+        self.statsRow.setAlignment_(NSStackViewAlignmentLeading)
+        self.infoStack.addArrangedSubview_(self.statsRow)
 
-        self.wordCounter = self._label("0 / 0")
-        try:
-            self.wordCounter.setFont_(NSFont.systemFontOfSize_(15))
-        except Exception:
-            pass
-        self.metaRow.addArrangedSubview_(self.wordCounter)
+        self.wordCounter = self._label("0 / 0 words", 17.0, NSColor.labelColor())
+        self.wordCounter.setFont_(NSFont.systemFontOfSize_weight_(17.0, 0.2))  # medium
+        self.statsRow.addArrangedSubview_(self.wordCounter)
 
-        self.totalScore = self._label("Potential: 0")
-        try:
-            self.totalScore.setFont_(NSFont.systemFontOfSize_(15))
-        except Exception:
-            pass
-        self.metaRow.addArrangedSubview_(self.totalScore)
+        self.totalScore = self._label("Potential: 0 points", 15.0, NSColor.secondaryLabelColor())
+        self.statsRow.addArrangedSubview_(self.totalScore)
 
+        # progress bar (sleeker)
         self.wordProgress = NSProgressIndicator.alloc().initWithFrame_(NSZeroRect)
-        try:
-            self.wordProgress.setIndeterminate_(False)
-            self.wordProgress.setMinValue_(0.0)
-            self.wordProgress.setMaxValue_(1.0)
-            self.wordProgress.setDoubleValue_(0.0)
-            self.wordProgress.setUsesThreadedAnimation_(True)
-        except Exception:
-            pass
+        self.wordProgress.setIndeterminate_(False)
+        self.wordProgress.setMinValue_(0.0)
+        self.wordProgress.setMaxValue_(1.0)
+        self.wordProgress.setDoubleValue_(0.0)
+        self.wordProgress.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.infoStack.addArrangedSubview_(self.wordProgress)
 
-        self.upcomingTitle = self._label("Upcoming words:")
-        try:
-            self.upcomingTitle.setFont_(NSFont.systemFontOfSize_(15))
-        except Exception:
-            pass
-        self.infoStack.addArrangedSubview_(self.upcomingTitle)
+        NSLayoutConstraint.activateConstraints_([
+            self.wordProgress.heightAnchor().constraintEqualToConstant_(6.0)
+        ])
 
+        # separator line
+        separator = NSView.alloc().initWithFrame_(NSZeroRect)
+        separator.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        separator.setWantsLayer_(True)
+        if separator.layer():
+            separator.layer().setBackgroundColor_(NSColor.separatorColor().CGColor())
+        self.infoStack.addArrangedSubview_(separator)
+        NSLayoutConstraint.activateConstraints_([
+            separator.heightAnchor().constraintEqualToConstant_(1.0)
+        ])
+
+        # upcoming words label
+        upcomingLabel = self._label("Upcoming Words", 12.0, NSColor.tertiaryLabelColor())
+        upcomingLabel.setFont_(NSFont.boldSystemFontOfSize_(12.0))
+        self.infoStack.addArrangedSubview_(upcomingLabel)
+
+        # scrollable upcoming words list (clean, borderless)
         self.upScroll = NSScrollView.alloc().initWithFrame_(NSZeroRect)
-        self.upScroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.upScroll.setHasVerticalScroller_(True)
-        try:
-            self.upScroll.setDrawsBackground_(False)
-        except Exception:
-            pass
-        try:
-            self.upScroll.setHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow, NSUserInterfaceLayoutOrientationVertical)
-        except Exception:
-            pass
-        self.upcoming = NSTextView.alloc().initWithFrame_(NSZeroRect)
-        self.upcoming.setEditable_(False)
-        try:
-            mono = getattr(NSFont, 'monospacedSystemFontOfSize_weight_', None)
-            if mono is not None:
-                self.upcoming.setFont_(mono(13, 0))
-            if NSColor is not None:
-                self.upcoming.setTextColor_(NSColor.labelColor())
-                self.upcoming.setBackgroundColor_(NSColor.clearColor())
-        except Exception:
-            pass
-        self.upScroll.setDocumentView_(self.upcoming)
+        self.upScroll.setDrawsBackground_(False)
+        self.upScroll.setBorderType_(0)  # no border
+        self.upScroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.infoStack.addArrangedSubview_(self.upScroll)
 
-        # Give the upcoming list a reasonable minimum height but allow expansion
-        upcomingConstraints = [
-            NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                self.upScroll, NSLayoutAttributeHeight, NSLayoutRelationEqual, None, NSLayoutAttributeNotAnAttribute, 1.0, 170.0)
-        ]
-        self.upScroll.addConstraints_(upcomingConstraints)
+        # make scroll view stretch to fill remaining space
+        self.upScroll.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationVertical)
+
+        self.upcoming = NSTextView.alloc().initWithFrame_(NSZeroRect)
+        self.upcoming.setEditable_(False)
+        self.upcoming.setFont_(NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0))
+        self.upcoming.setTextColor_(NSColor.secondaryLabelColor())
+        self.upcoming.setBackgroundColor_(NSColor.clearColor())
+        self.upcoming.setTextContainerInset_(NSMakeSize(8.0, 8.0))
+        self.upcoming.setMinSize_(NSMakeSize(0.0, 0.0))
+        self.upcoming.setMaxSize_(NSMakeSize(1e7, 1e7))
+        self.upcoming.setVerticallyResizable_(True)
+        self.upcoming.setHorizontallyResizable_(False)
+        self.upcoming.textContainer().setWidthTracksTextView_(True)
+        self.upScroll.setDocumentView_(self.upcoming)
+
+        # logs view (initially hidden, clean design)
+        self.logsScroll = NSScrollView.alloc().initWithFrame_(NSZeroRect)
+        self.logsScroll.setHasVerticalScroller_(True)
+        self.logsScroll.setDrawsBackground_(False)
+        self.logsScroll.setBorderType_(0)
+        self.logsScroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.logsScroll.setHidden_(True)
+        self.contentContainer.addSubview_(self.logsScroll)
+
+        NSLayoutConstraint.activateConstraints_([
+            self.logsScroll.leadingAnchor().constraintEqualToAnchor_(self.contentContainer.leadingAnchor()),
+            self.logsScroll.trailingAnchor().constraintEqualToAnchor_(self.contentContainer.trailingAnchor()),
+            self.logsScroll.topAnchor().constraintEqualToAnchor_(self.contentContainer.topAnchor()),
+            self.logsScroll.bottomAnchor().constraintEqualToAnchor_(self.contentContainer.bottomAnchor())
+        ])
+
+        self.text = NSTextView.alloc().initWithFrame_(NSZeroRect)
+        self.text.setEditable_(False)
+        self.text.setFont_(NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0))
+        self.text.setTextColor_(NSColor.labelColor())
+        self.text.setBackgroundColor_(NSColor.clearColor())
+        self.text.setTextContainerInset_(NSMakeSize(12.0, 12.0))
+        self.text.setMinSize_(NSMakeSize(0.0, 0.0))
+        self.text.setMaxSize_(NSMakeSize(1e7, 1e7))
+        self.text.setVerticallyResizable_(True)
+        self.text.setHorizontallyResizable_(False)
+        self.text.textContainer().setWidthTracksTextView_(True)
+        self.logsScroll.setDocumentView_(self.text)
 
         self.window.makeKeyAndOrderFront_(None)
         NSRunningApplication.currentApplication().activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
@@ -431,10 +434,8 @@ class App:
         self.worker = None
         self.isRunning = False
 
-        # Main-thread dispatcher for macOS UI calls when running background threads
-        # Uses AppHelper.callAfter to execute functions on the Cocoa main thread.
+        # main-thread dispatcher
         def run_on_main(func, *args, **kwargs):
-            # If we're already on the main thread, run directly to avoid deadlock.
             if NSThread.isMainThread():
                 return func(*args, **kwargs)
             done = threading.Event()
@@ -460,17 +461,71 @@ class App:
         self._start_pump()
         self._install_hotkeys()
 
-    # --- Segmented control ---
-    def onSegment_(self, sender):
-        idx = 0
+
+    def _button(self, title: str, selector_name: str, isPrimary: bool = False):
+        """create a properly styled button"""
+        btn = NSButton.alloc().initWithFrame_(NSZeroRect)
+        btn.setTitle_(title)
+        btn.setBezelStyle_(NSBezelStyleRounded)
+        btn.setTarget_(self)
+        btn.setAction_(selector_name)
+        btn.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        btn.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultHigh, NSUserInterfaceLayoutOrientationHorizontal)
+        
+        if isPrimary:
+            # make primary button more prominent
+            btn.setKeyEquivalent_("\r")  # return key
+        
+        # keyboard shortcuts
+        if title == "Start":
+            btn.setKeyEquivalent_("s")
+            btn.setKeyEquivalentModifierMask_(NSEventModifierFlagCommand)
+        elif title == "Stop":
+            btn.setKeyEquivalent_(".")
+            btn.setKeyEquivalentModifierMask_(NSEventModifierFlagCommand)
+        
+        return btn
+
+    def _label(self, text: str, size: float, color):
+        """create a label"""
+        lbl = NSTextField.alloc().initWithFrame_(NSZeroRect)
+        lbl.setBezeled_(False)
+        lbl.setDrawsBackground_(False)
+        lbl.setEditable_(False)
+        lbl.setSelectable_(False)
+        lbl.setStringValue_(text)
+        lbl.setFont_(NSFont.systemFontOfSize_(size))
+        lbl.setTextColor_(color)
+        lbl.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        return lbl
+
+    def _style_button(self, btn, symbol: str, color):
+        """add SF Symbol and color to button"""
         try:
-            idx = sender.selectedSegment()
+            img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(symbol, None)
+            if img:
+                cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_scale_(13.0, 0, 1)
+                img = img.imageByApplyingSymbolConfiguration_(cfg)
+                btn.setImage_(img)
+                btn.setImagePosition_(NSImageLeft)
+                if hasattr(btn, 'setContentTintColor_'):
+                    btn.setContentTintColor_(color)
         except Exception:
             pass
-        self.dash.setHidden_(idx != 0)
-        self.scroll.setHidden_(idx != 1)
+
+    def onSegment_(self, sender):
+        """switch between dashboard and logs"""
+        idx = sender.selectedSegment()
+        self.dashView.setHidden_(idx != 0)
+        self.logsScroll.setHidden_(idx != 1)
+        if idx == 1:
+            try:
+                self.logger.pump()
+            except Exception:
+                pass
 
     def _start_pump(self):
+        """start log pumping thread"""
         def pump_loop():
             while True:
                 self.logger.pump()
@@ -478,87 +533,34 @@ class App:
         t = threading.Thread(target=pump_loop, daemon=True)
         t.start()
 
-    def _button(self, title: str, selector_name: str, min_width: float = 0.0):
-        b = NSButton.alloc().initWithFrame_(NSZeroRect)
-        b.setTitle_(title)
-        b.setBezelStyle_(NSBezelStyleRounded)
-        b.setTarget_(self)
-        # Action must be a selector string like 'onPerm:' that maps to a Python method 'onPerm_'
-        b.setAction_(selector_name)
-        # Add key equivalents for quick control
-        if title == "Start":
-            try:
-                b.setKeyEquivalent_("s")
-                b.setKeyEquivalentModifierMask_(NSEventModifierFlagCommand)
-            except Exception:
-                pass
-        if title == "Stop":
-            try:
-                b.setKeyEquivalent_(".")
-                b.setKeyEquivalentModifierMask_(NSEventModifierFlagCommand)
-            except Exception:
-                pass
-        if min_width and min_width > 0:
-            constraint = NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-                b, NSLayoutAttributeWidth, NSLayoutRelationEqual, None, NSLayoutAttributeNotAnAttribute, 1.0, min_width)
-            b.addConstraint_(constraint)
-        return b
-
-    def _label(self, text: str):
-        lbl = NSTextField.alloc().initWithFrame_(NSZeroRect)
-        lbl.setBezeled_(False)
-        lbl.setDrawsBackground_(False)
-        lbl.setEditable_(False)
-        lbl.setSelectable_(False)
-        lbl.setStringValue_(text)
-        return lbl
-
-    def _style_toolbar_button(self, btn, symbol: str, tint: str = "labelColor"):
-        # Apply SF Symbol icon and tint for a modern toolbar look
-        try:
-            if NSImage is None:
-                return
-            if hasattr(NSImage, 'imageWithSystemSymbolName_accessibilityDescription_'):
-                img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(symbol, None)
-                if NSImageSymbolConfiguration is not None:
-                    cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_scale_(13.0, 0, 1)
-                    img = img.imageByApplyingSymbolConfiguration_(cfg)
-                btn.setImage_(img)
-                btn.setImagePosition_(NSImageLeft)
-                btn.setImageScaling_(NSImageScaleProportionallyDown)
-            if NSColor is not None:
-                color_map = {
-                    'systemGreen': NSColor.systemGreenColor() if hasattr(NSColor, 'systemGreenColor') else None,
-                    'systemRed': NSColor.systemRedColor() if hasattr(NSColor, 'systemRedColor') else None,
-                    'systemTeal': getattr(NSColor, 'systemTealColor', lambda: NSColor.systemBlueColor())(),
-                    'labelColor': NSColor.labelColor() if hasattr(NSColor, 'labelColor') else None,
-                }
-                tint_color = color_map.get(tint, None)
-                if tint_color is not None and hasattr(btn, 'setContentTintColor_'):
-                    btn.setContentTintColor_(tint_color)
-        except Exception:
-            pass
-
     def print_welcome(self):
-        print("""
-Welcome! Quick steps:\n\n1) Click Permissions and grant Screen Recording + Accessibility to this app.\n2) Ensure iPhone Mirroring shows WordHunt start screen.\n3) Click Move to Corner, then Start.\n4) Optional: Calibrate once; it's saved and used automatically.\n""".strip())
+        print("""Welcome to WordHunt Solver!
+
+Quick Start:
+1. Click 'Permissions' and grant Screen Recording + Accessibility
+2. Open iPhone Mirroring with WordHunt start screen
+3. Click 'Move to Corner', then 'Start'
+4. (Optional) Run 'Calibrate' once for better accuracy
+
+Keyboard Shortcuts:
+⌘S - Start solving
+⌘. - Stop
+        """.strip())
 
     def ensure_solver(self):
         if self.solver is None:
-            # Disable OpenCV windows and marshal macOS UI calls to main thread
             self.solver = WordHuntSolver(no_windows=True, ui_call=self.run_on_main)
-            # Subscribe to solver UI events
             self.solver.ui_event = self.onSolverEvent
 
-    # Button actions
+    # button actions
     def onPerm_(self, sender):
-        print("Checking permissions…")
+        print("Opening System Preferences...")
         os.system('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenRecording"')
         os.system('open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"')
-        print("If new, please restart the app after granting both.")
+        print("⚠️  Please grant both permissions and restart the app")
 
     def onMove_(self, sender):
-        print("Moving iPhone window to corner…")
+        print("Moving iPhone Mirroring window to corner...")
         move_iphone_mirror_to_corner()
 
     def _run(self, dry=False):
@@ -569,59 +571,78 @@ Welcome! Quick steps:\n\n1) Click Permissions and grant Screen Recording + Acces
             self._set_running(True, mode)
             self.solver.solve()
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"❌ Error: {e}")
         finally:
             from PyObjCTools import AppHelper
             AppHelper.callAfter(self._set_running, False)
 
     def onStart_(self, sender):
         if self.worker and self.worker.is_alive():
-            print("Already running…")
+            print("⚠️  Already running...")
             return
         self.worker = threading.Thread(target=self._run, kwargs={'dry': False}, daemon=True)
         self.worker.start()
 
     def onDry_(self, sender):
         if self.worker and self.worker.is_alive():
-            print("Already running…")
+            print("⚠️  Already running...")
             return
         os.environ['WORDHUNT_DEBUG_GRID'] = '1'
         self.worker = threading.Thread(target=self._run, kwargs={'dry': True}, daemon=True)
         self.worker.start()
 
     def onCal_(self, sender):
-        # Run calibration on a worker thread to keep UI responsive
         def _do_cal():
             try:
                 self.ensure_solver()
+                print("🎯 Starting calibration in 3 seconds...")
                 self.solver.calibrate(delay_seconds=3.0, show_overlay=False)
-                print("Calibration saved. You can enable Grid Overlay and run Dry Run to verify.")
+                print("✅ Calibration saved successfully")
             except Exception as e:
-                print(f"Calibration error: {e}")
+                print(f"❌ Calibration error: {e}")
         if self.worker and self.worker.is_alive():
-            print("Already running…")
+            print("⚠️  Already running...")
             return
         self.worker = threading.Thread(target=_do_cal, daemon=True)
         self.worker.start()
 
     def onReload_(self, sender):
-        # Reload model in background; solver guards with a lock
         def _do_reload():
             try:
                 self.ensure_solver()
+                print("🔄 Reloading model...")
                 self.solver.reload_model()
+                print("✅ Model reloaded successfully!")
             except Exception as e:
-                print(f"Model reload error: {e}")
+                print(f"❌ Model reload error: {e}")
+            finally:
+                # restore status on main thread
+                try:
+                    from PyObjCTools import AppHelper
+                    AppHelper.callAfter(self.status.setStringValue_, "Idle")
+                    AppHelper.callAfter(self.spinner.stopAnimation_, None)
+                except Exception:
+                    self.status.setStringValue_("Idle")
+                    self.spinner.stopAnimation_(None)
+        # show immediate feedback
+        print("Starting model reload...")
+        self.status.setStringValue_("Reloading model…")
+        self.spinner.startAnimation_(None)
+        # ensure any buffered output appears quickly
+        try:
+            self.logger.pump()
+        except Exception:
+            pass
         t = threading.Thread(target=_do_reload, daemon=True)
         t.start()
 
     def onStop_(self, sender):
         if self.solver:
             self.solver.stop()
-            print("Stop requested.")
+            print("🛑 Stop requested")
 
-    # --- UI helpers ---
     def _set_running(self, running: bool, mode: str = None):
+        """update UI for running state"""
         self.isRunning = running
         self.btnStart.setEnabled_(not running)
         self.btnDry.setEnabled_(not running)
@@ -630,23 +651,25 @@ Welcome! Quick steps:\n\n1) Click Permissions and grant Screen Recording + Acces
         self.btnMove.setEnabled_(not running)
         self.btnReload.setEnabled_(True)
         self.btnStop.setEnabled_(True)
+        
         status_text = "Idle"
         if running:
             status_text = mode if mode else "Running"
         self.status.setStringValue_(status_text)
+        
         if running:
             self.spinner.startAnimation_(None)
         else:
             self.spinner.stopAnimation_(None)
 
     def _install_hotkeys(self):
+        """install global hotkeys"""
         try:
             from AppKit import NSEvent, NSEventMaskKeyDown
-            # Global stop hotkey: Esc or Command-.
             def handler(event):
                 try:
                     chars = event.charactersIgnoringModifiers()
-                    if chars in ("\x1b", ".", "q", "Q"):
+                    if chars in ("\x1b", "."):  # Esc or .
                         self.onStop_(None)
                 except Exception:
                     pass
@@ -654,67 +677,69 @@ Welcome! Quick steps:\n\n1) Click Permissions and grant Screen Recording + Acces
         except Exception:
             pass
 
-    # --- Solver UI events ---
+    # solver UI events
     def onSolverEvent(self, event: str, payload: dict):
+        """handle solver UI updates"""
         if event == 'board' and 'image' in payload:
             try:
                 nsimg = self._nsimage_from_np(payload['image'])
-                if hasattr(self.boardView, 'setImage_'):
+                if nsimg:
                     self.boardView.setImage_(nsimg)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Error updating board: {e}")
+        
         elif event == 'words_list' and 'words' in payload:
             words = payload['words']
-            preview_lines = []
-            limit = 200
-            for idx, w in enumerate(words[:limit], 1):
-                preview_lines.append(f"{idx:>3}. {w}")
-            preview = "\n".join(preview_lines)
-            self.upcoming.setString_(preview)
-            try:
-                self.wordProgress.setMinValue_(0)
-                self.wordProgress.setMaxValue_(max(1, len(words)))
-                self.wordProgress.setDoubleValue_(0)
-                self.wordCounter.setStringValue_(f"0 / {len(words)}")
-            except Exception:
-                pass
-            self.currentWord.setStringValue_("")
+            lines = []
+            for idx, w in enumerate(words[:200], 1):
+                lines.append(f"{idx:>3}. {w.upper()}")
+            self.upcoming.setString_("\n".join(lines))
+            
+            self.wordProgress.setMinValue_(0)
+            self.wordProgress.setMaxValue_(max(1, len(words)))
+            self.wordProgress.setDoubleValue_(0)
+            word_label = "word" if len(words) == 1 else "words"
+            self.wordCounter.setStringValue_(f"0 / {len(words)} {word_label}")
+            self.currentWord.setStringValue_("—")
+        
         elif event == 'potential_score':
             score = payload.get('score', 0)
-            self.totalScore.setStringValue_(f"Potential: {score:,}")
+            point_label = "point" if score == 1 else "points"
+            self.totalScore.setStringValue_(f"Potential: {score:,} {point_label}")
+        
         elif event == 'progress':
             cur = payload.get('current', '')
             idx = int(payload.get('index', 0))
             total = int(payload.get('total', 1))
             self.currentWord.setStringValue_(cur.upper())
-            try:
-                # animate progress step
-                self.wordProgress.setDoubleValue_(idx)
-                self.wordCounter.setStringValue_(f"{idx} / {total}")
-            except Exception:
-                pass
+            self.wordProgress.setDoubleValue_(idx)
+            word_label = "word" if total == 1 else "words"
+            self.wordCounter.setStringValue_(f"{idx} / {total} {word_label}")
 
     def _nsimage_from_np(self, img_np):
-        # Convert BGR/ARGB numpy to RGB for display, via PIL -> TIFF
+        """convert numpy array to NSImage"""
         if img_np is None:
             return None
-        if NSImage is None:
+        try:
+            # convert to RGB
+            if len(img_np.shape) == 3 and img_np.shape[2] == 4:
+                rgb = img_np[:, :, :3][:, :, ::-1]
+            elif len(img_np.shape) == 3 and img_np.shape[2] == 3:
+                rgb = img_np[:, :, ::-1]
+            else:
+                rgb = np.stack([img_np]*3, axis=-1)
+            
+            pil = PILImage.fromarray(rgb)
+            buf = BytesIO()
+            pil.save(buf, format='PNG')
+            data = buf.getvalue()
+            
+            from Foundation import NSData
+            nsdata = NSData.dataWithBytes_length_(data, len(data))
+            return NSImage.alloc().initWithData_(nsdata)
+        except Exception as e:
+            print(f"Image conversion error: {e}")
             return None
-        if len(img_np.shape) == 3 and img_np.shape[2] == 4:
-            # drop alpha to RGB
-            rgb = img_np[:, :, :3][:, :, ::-1]
-        elif len(img_np.shape) == 3 and img_np.shape[2] == 3:
-            rgb = img_np[:, :, ::-1]
-        else:
-            # grayscale to RGB
-            rgb = np.stack([img_np]*3, axis=-1)
-        pil = PILImage.fromarray(rgb)
-        buf = BytesIO()
-        pil.save(buf, format='TIFF')
-        data = buf.getvalue()
-        from Foundation import NSData
-        nsdata = NSData.dataWithBytes_length_(data, len(data))
-        return NSImage.alloc().initWithData_(nsdata)
 
 
 if __name__ == '__main__':
