@@ -68,6 +68,7 @@ except ImportError as e:
     NSBorderlessWindowMask = 0
 from PyObjCTools import AppHelper
 from io import BytesIO
+from Foundation import NSMakeRange
 from PIL import Image as PILImage
 import numpy as np
 import objc
@@ -119,7 +120,20 @@ class Logger:
         text = "".join(payload)
 
         def _append():
-            self.textview.setString_(self.textview.string() + text)
+            # append plain text then enforce readable color in dark UI
+            current = self.textview.string() or ""
+            self.textview.setString_(current + text)
+            try:
+                total_len = len(self.textview.string() or "")
+                if total_len > 0:
+                    # ensure foreground color is visible on dark vibrancy
+                    from AppKit import NSColor
+                    self.textview.setTextColor_range_(NSColor.labelColor(), NSMakeRange(0, total_len))
+                    # use a monospaced font for readability (same as setup)
+                    from AppKit import NSFont
+                    self.textview.setFont_(NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0))
+            except Exception:
+                pass
             self.textview.scrollToEndOfDocument_(None)
 
         try:
@@ -133,19 +147,22 @@ class App:
     def __init__(self):
         self.app = NSApplication.sharedApplication()
         self.app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
+        
+        # setup application menu for Command+Q to work
+        self._setup_app_menu()
 
         # create modern window with proper style mask
         styleMask = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | 
                      NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
         
         self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-            NSMakeRect(100.0, 100.0, 920.0, 600.0),
+            NSMakeRect(100.0, 100.0, 980.0, 640.0),  # slightly larger default
             styleMask,
             NSBackingStoreBuffered,
             False
         )
         self.window.setTitle_("WordHunt Solver")
-        self.window.setMinSize_(NSMakeSize(760.0, 500.0))
+        self.window.setMinSize_(NSMakeSize(860.0, 560.0))  # slightly larger minimum
         
         # enable full-size content view for modern look
         self.window.setTitlebarAppearsTransparent_(False)
@@ -179,13 +196,29 @@ class App:
             self.rootStack.bottomAnchor().constraintEqualToAnchor_constant_(content.bottomAnchor(), -margin)
         ])
 
-        # --- Toolbar section (no card, just buttons on transparent background) ---
+        # --- Toolbar section with visual container ---
+        toolbarContainer = NSView.alloc().initWithFrame_(NSZeroRect)
+        toolbarContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        toolbarContainer.setWantsLayer_(True)
+        if toolbarContainer.layer():
+            toolbarContainer.layer().setBackgroundColor_(NSColor.colorWithWhite_alpha_(1.0, 0.03).CGColor())
+            toolbarContainer.layer().setCornerRadius_(8.0)
+        self.rootStack.addArrangedSubview_(toolbarContainer)
+        
         self.toolbarStack = NSStackView.alloc().initWithFrame_(NSZeroRect)
         self.toolbarStack.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
         self.toolbarStack.setSpacing_(8.0)
         self.toolbarStack.setAlignment_(NSStackViewAlignmentCenterY)
         self.toolbarStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.rootStack.addArrangedSubview_(self.toolbarStack)
+        toolbarContainer.addSubview_(self.toolbarStack)
+        
+        # constrain toolbar stack within container with padding
+        NSLayoutConstraint.activateConstraints_([
+            self.toolbarStack.leadingAnchor().constraintEqualToAnchor_constant_(toolbarContainer.leadingAnchor(), 12.0),
+            self.toolbarStack.trailingAnchor().constraintEqualToAnchor_constant_(toolbarContainer.trailingAnchor(), -12.0),
+            self.toolbarStack.topAnchor().constraintEqualToAnchor_constant_(toolbarContainer.topAnchor(), 8.0),
+            self.toolbarStack.bottomAnchor().constraintEqualToAnchor_constant_(toolbarContainer.bottomAnchor(), -8.0)
+        ])
 
         # create buttons with proper styling
         self.btnStart = self._button("Start", "onStart:", isPrimary=True)
@@ -199,12 +232,24 @@ class App:
         for btn in (self.btnStart, self.btnDry, self.btnStop):
             self.toolbarStack.addArrangedSubview_(btn)
         
+        # add vertical separator after action buttons
+        sep1 = NSView.alloc().initWithFrame_(NSZeroRect)
+        sep1.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        sep1.setWantsLayer_(True)
+        if sep1.layer():
+            sep1.layer().setBackgroundColor_(NSColor.separatorColor().CGColor())
+        self.toolbarStack.addArrangedSubview_(sep1)
+        NSLayoutConstraint.activateConstraints_([
+            sep1.widthAnchor().constraintEqualToConstant_(1.0),
+            sep1.heightAnchor().constraintEqualToConstant_(24.0)
+        ])
+        
         # spacer to push remaining buttons to the right
         spacer = NSView.alloc().initWithFrame_(NSZeroRect)
         spacer.setTranslatesAutoresizingMaskIntoConstraints_(False)
         spacer.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationHorizontal)
         self.toolbarStack.addArrangedSubview_(spacer)
-
+        
         for btn in (self.btnCal, self.btnReload, self.btnPerm, self.btnMove):
             self.toolbarStack.addArrangedSubview_(btn)
 
@@ -284,10 +329,19 @@ class App:
         self.boardView.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.boardView.setWantsLayer_(True)
         if self.boardView.layer():
-            self.boardView.layer().setCornerRadius_(12.0)
-            self.boardView.layer().setMasksToBounds_(True)
-            self.boardView.layer().setBorderWidth_(0.5)
-            self.boardView.layer().setBorderColor_(NSColor.separatorColor().CGColor())
+            self.boardView.layer().setCornerRadius_(16.0)  # larger radius
+            self.boardView.layer().setMasksToBounds_(False)  # allow shadow
+            self.boardView.layer().setBorderWidth_(1.0)  # slightly thicker
+            self.boardView.layer().setBorderColor_(NSColor.colorWithWhite_alpha_(1.0, 0.1).CGColor())
+            
+            # add shadow for depth
+            try:
+                self.boardView.layer().setShadowColor_(NSColor.blackColor().CGColor())
+                self.boardView.layer().setShadowOffset_(NSMakeSize(0.0, -2.0))
+                self.boardView.layer().setShadowOpacity_(0.3)
+                self.boardView.layer().setShadowRadius_(8.0)
+            except Exception:
+                pass
         self.dashView.addSubview_(self.boardView)
 
         # board constraints - square, fixed on left side
@@ -351,10 +405,16 @@ class App:
         self.wordProgress.setMaxValue_(1.0)
         self.wordProgress.setDoubleValue_(0.0)
         self.wordProgress.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        
+        # style progress bar with layer
+        self.wordProgress.setWantsLayer_(True)
+        if self.wordProgress.layer():
+            self.wordProgress.layer().setCornerRadius_(3.0)
+        
         self.infoStack.addArrangedSubview_(self.wordProgress)
 
         NSLayoutConstraint.activateConstraints_([
-            self.wordProgress.heightAnchor().constraintEqualToConstant_(6.0)
+            self.wordProgress.heightAnchor().constraintEqualToConstant_(8.0)  # slightly taller
         ])
 
         # separator line
@@ -368,9 +428,9 @@ class App:
             separator.heightAnchor().constraintEqualToConstant_(1.0)
         ])
 
-        # upcoming words label
-        upcomingLabel = self._label("Upcoming Words", 12.0, NSColor.tertiaryLabelColor())
-        upcomingLabel.setFont_(NSFont.boldSystemFontOfSize_(12.0))
+        # upcoming words header with better styling
+        upcomingLabel = self._label("UPCOMING WORDS", 11.0, NSColor.secondaryLabelColor())
+        upcomingLabel.setFont_(NSFont.systemFontOfSize_weight_(11.0, 0.3))  # semibold, uppercase
         self.infoStack.addArrangedSubview_(upcomingLabel)
 
         # scrollable upcoming words list (clean, borderless)
@@ -416,13 +476,17 @@ class App:
         self.text = NSTextView.alloc().initWithFrame_(NSZeroRect)
         self.text.setEditable_(False)
         self.text.setFont_(NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0))
-        self.text.setTextColor_(NSColor.labelColor())
         self.text.setBackgroundColor_(NSColor.clearColor())
         self.text.setTextContainerInset_(NSMakeSize(12.0, 12.0))
         self.text.setMinSize_(NSMakeSize(0.0, 0.0))
         self.text.setMaxSize_(NSMakeSize(1e7, 1e7))
         self.text.setVerticallyResizable_(True)
         self.text.setHorizontallyResizable_(False)
+        # ensure caret/text remain visible in dark appearance
+        try:
+            self.text.setInsertionPointColor_(NSColor.labelColor())
+        except Exception:
+            pass
         self.text.textContainer().setWidthTracksTextView_(True)
         self.logsScroll.setDocumentView_(self.text)
 
@@ -461,6 +525,33 @@ class App:
         self._start_pump()
         self._install_hotkeys()
 
+    def _setup_app_menu(self):
+        """setup application menu with Quit command for Cmd+Q"""
+        try:
+            from AppKit import NSMenu, NSMenuItem
+            
+            # create main menu bar
+            menubar = NSMenu.alloc().init()
+            
+            # create app menu (first menu)
+            appMenuItem = NSMenuItem.alloc().init()
+            menubar.addItem_(appMenuItem)
+            
+            # create app submenu
+            appMenu = NSMenu.alloc().init()
+            appMenuItem.setSubmenu_(appMenu)
+            
+            # add Quit item with Cmd+Q
+            quitTitle = "Quit WordHunt Solver"
+            quitMenuItem = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                quitTitle, "terminate:", "q"
+            )
+            appMenu.addItem_(quitMenuItem)
+            
+            # set as main menu
+            self.app.setMainMenu_(menubar)
+        except Exception as e:
+            print(f"Menu setup error: {e}")
 
     def _button(self, title: str, selector_name: str, isPrimary: bool = False):
         """create a properly styled button"""
@@ -472,9 +563,16 @@ class App:
         btn.setTranslatesAutoresizingMaskIntoConstraints_(False)
         btn.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultHigh, NSUserInterfaceLayoutOrientationHorizontal)
         
+        # improve font
+        btn.setFont_(NSFont.systemFontOfSize_weight_(13.0, 0.1))  # slightly bolder
+        
+        # add height constraint for consistency
+        NSLayoutConstraint.activateConstraints_([
+            btn.heightAnchor().constraintEqualToConstant_(28.0)
+        ])
+        
         if isPrimary:
-            # make primary button more prominent
-            btn.setKeyEquivalent_("\r")  # return key
+            btn.setKeyEquivalent_("\r")
         
         # keyboard shortcuts
         if title == "Start":
@@ -502,15 +600,34 @@ class App:
     def _style_button(self, btn, symbol: str, color):
         """add SF Symbol and color to button"""
         try:
+            # create symbol image with proper configuration
             img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(symbol, None)
             if img:
-                cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_scale_(13.0, 0, 1)
-                img = img.imageByApplyingSymbolConfiguration_(cfg)
+                # try to apply configuration if available (macOS 11+)
+                try:
+                    if hasattr(NSImageSymbolConfiguration, 'configurationWithPointSize_weight_scale_'):
+                        cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_scale_(14.0, 4, 2)
+                        if hasattr(img, 'imageByApplyingSymbolConfiguration_'):
+                            img = img.imageByApplyingSymbolConfiguration_(cfg)
+                except Exception:
+                    pass  # use default size if configuration fails
+                
                 btn.setImage_(img)
                 btn.setImagePosition_(NSImageLeft)
-                if hasattr(btn, 'setContentTintColor_'):
+                
+                # set content tint color for the icon
+                try:
                     btn.setContentTintColor_(color)
-        except Exception:
+                except Exception:
+                    pass
+                
+                # ensure button shows both image and text
+                try:
+                    btn.setImageHugsTitle_(True)
+                except Exception:
+                    pass
+        except Exception as e:
+            # silently fail if SF Symbols not available
             pass
 
     def onSegment_(self, sender):
@@ -642,7 +759,7 @@ Keyboard Shortcuts:
             print("🛑 Stop requested")
 
     def _set_running(self, running: bool, mode: str = None):
-        """update UI for running state"""
+        """update UI for running state with color coding"""
         self.isRunning = running
         self.btnStart.setEnabled_(not running)
         self.btnDry.setEnabled_(not running)
@@ -653,9 +770,14 @@ Keyboard Shortcuts:
         self.btnStop.setEnabled_(True)
         
         status_text = "Idle"
+        status_color = NSColor.systemGreenColor()  # green for idle
+        
         if running:
             status_text = mode if mode else "Running"
+            status_color = NSColor.systemOrangeColor()  # orange for running
+        
         self.status.setStringValue_(status_text)
+        self.status.setTextColor_(status_color)
         
         if running:
             self.spinner.startAnimation_(None)
