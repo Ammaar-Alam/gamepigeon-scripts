@@ -126,13 +126,18 @@ class Logger:
                 from Foundation import NSAttributedString
                 attrs = {
                     NSFontAttributeName: NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0),
-                    NSForegroundColorAttributeName: NSColor.labelColor(),
+                    NSForegroundColorAttributeName: NSColor.whiteColor(),
                 }
                 chunk = NSAttributedString.alloc().initWithString_attributes_(text, attrs)
                 ts = self.textview.textStorage()
                 ts.beginEditing()
                 ts.appendAttributedString_(chunk)
                 ts.endEditing()
+                try:
+                    self.textview.layoutManager().ensureLayoutForTextContainer_(self.textview.textContainer())
+                    self.textview.setNeedsDisplay_(True)
+                except Exception:
+                    pass
             except Exception:
                 # fallback to plain string if attributed append fails
                 current = self.textview.string() or ""
@@ -499,16 +504,11 @@ class App:
         except Exception:
             pass
 
-        # scrollable upcoming words list inside a darker container
-        try:
-            self.upContainer = NSVisualEffectView.alloc().initWithFrame_(NSZeroRect)
-            self.upContainer.setMaterial_(NSVisualEffectMaterialContentBackground)
-            self.upContainer.setBlendingMode_(NSVisualEffectBlendingModeWithinWindow)
-        except Exception:
-            self.upContainer = NSView.alloc().initWithFrame_(NSZeroRect)
-            self.upContainer.setWantsLayer_(True)
-            if self.upContainer.layer():
-                self.upContainer.layer().setBackgroundColor_(NSColor.colorWithWhite_alpha_(0.0, 0.18).CGColor())
+        # scrollable upcoming words list inside a non-vibrant container to avoid text blending issues
+        self.upContainer = NSView.alloc().initWithFrame_(NSZeroRect)
+        self.upContainer.setWantsLayer_(True)
+        if self.upContainer.layer():
+            self.upContainer.layer().setBackgroundColor_(NSColor.colorWithWhite_alpha_(0.12, 1.0).CGColor())
         self.upContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.infoStack.addArrangedSubview_(self.upContainer)
         NSLayoutConstraint.activateConstraints_([
@@ -519,7 +519,8 @@ class App:
             self.upContainer.heightAnchor().constraintGreaterThanOrEqualToConstant_(240.0)
         ])
 
-        self.upScroll = NSScrollView.alloc().initWithFrame_(NSZeroRect)
+        # use Apple's factory to get a properly configured scrollable text view
+        self.upScroll = NSTextView.scrollableTextView()
         self.upScroll.setHasVerticalScroller_(True)
         self.upScroll.setDrawsBackground_(False)
         self.upScroll.setBorderType_(0)  # no border
@@ -535,22 +536,24 @@ class App:
         # make scroll view stretch to fill remaining space
         self.upScroll.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationVertical)
 
-        self.upcoming = NSTextView.alloc().initWithFrame_(NSZeroRect)
+        # get the embedded text view from the factory scroll view
+        self.upcoming = self.upScroll.documentView()
         self.upcoming.setEditable_(False)
         self.upcoming.setSelectable_(True)
-        try:
-            self.upcoming.setDrawsBackground_(False)
-        except Exception:
-            pass
-        # keep rich text enabled so attributed coloring works and content renders
+        # draw a solid background to avoid vibrancy/clear blending
+        self.upcoming.setDrawsBackground_(True)
+        self.upcoming.setBackgroundColor_(NSColor.colorWithWhite_alpha_(0.12, 1.0))
+        # keep rich text enabled so attributed coloring works
         try:
             self.upcoming.setRichText_(True)
         except Exception:
             pass
-        self.upcoming.setFont_(NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0))
-        # use label color for readability on vibrancy
-        self.upcoming.setTextColor_(NSColor.labelColor())
-        self.upcoming.setBackgroundColor_(NSColor.clearColor())
+        try:
+            self.upcoming.setFont_(NSFont.userFixedPitchFontOfSize_(13.0))
+        except Exception:
+            self.upcoming.setFont_(NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0))
+        # force high-contrast text color
+        self.upcoming.setTextColor_(NSColor.whiteColor())
         # CRITICAL FIX: Keep richText enabled so text rendering works properly
         # We can still use setString_ with rich text enabled
         self.upcoming.setTextContainerInset_(NSMakeSize(8.0, 8.0))
@@ -558,13 +561,20 @@ class App:
         self.upcoming.setMaxSize_(NSMakeSize(1e7, 1e7))
         self.upcoming.setVerticallyResizable_(True)
         self.upcoming.setHorizontallyResizable_(False)
-        # ensure text wraps properly
+        # ensure text wraps properly and the container tracks width
+        contentSize = self.upScroll.contentSize()
         self.upcoming.textContainer().setWidthTracksTextView_(True)
-        self.upcoming.textContainer().setContainerSize_(NSMakeSize(1e7, 1e7))
-        self.upScroll.setDocumentView_(self.upcoming)
+        self.upcoming.textContainer().setContainerSize_(NSMakeSize(contentSize.width, 1e7))
+        self.upcoming.setMinSize_(NSMakeSize(0.0, contentSize.height))
+        self.upcoming.setMaxSize_(NSMakeSize(1e7, 1e7))
+        try:
+            self.upcoming.setAutoresizingMask_(18)  # width + height sizable
+        except Exception:
+            pass
 
         # logs view (initially hidden, clean design)
-        self.logsScroll = NSScrollView.alloc().initWithFrame_(NSZeroRect)
+        # factory scrollable text view for logs as well
+        self.logsScroll = NSTextView.scrollableTextView()
         self.logsScroll.setHasVerticalScroller_(True)
         self.logsScroll.setDrawsBackground_(False)
         self.logsScroll.setBorderType_(0)
@@ -579,19 +589,22 @@ class App:
             self.logsScroll.bottomAnchor().constraintEqualToAnchor_(self.contentContainer.bottomAnchor())
         ])
 
-        self.text = NSTextView.alloc().initWithFrame_(NSZeroRect)
+        # get the embedded logs text view
+        self.text = self.logsScroll.documentView()
         self.text.setEditable_(False)
         self.text.setSelectable_(True)
-        try:
-            self.text.setDrawsBackground_(False)
-        except Exception:
-            pass
+        # solid background for reliable contrast
+        self.text.setDrawsBackground_(True)
+        self.text.setBackgroundColor_(NSColor.colorWithWhite_alpha_(0.12, 1.0))
         try:
             self.text.setRichText_(True)
         except Exception:
             pass
-        self.text.setFont_(NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0))
-        self.text.setBackgroundColor_(NSColor.clearColor())
+        try:
+            self.text.setFont_(NSFont.userFixedPitchFontOfSize_(13.0))
+        except Exception:
+            self.text.setFont_(NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0))
+        self.text.setTextColor_(NSColor.whiteColor())
         self.text.setTextContainerInset_(NSMakeSize(12.0, 12.0))
         self.text.setMinSize_(NSMakeSize(0.0, 0.0))
         self.text.setMaxSize_(NSMakeSize(1e7, 1e7))
@@ -602,12 +615,16 @@ class App:
             self.text.setInsertionPointColor_(NSColor.labelColor())
         except Exception:
             pass
+        # configure wrapping and sizing
+        logsContentSize = self.logsScroll.contentSize()
         self.text.textContainer().setWidthTracksTextView_(True)
+        self.text.textContainer().setContainerSize_(NSMakeSize(logsContentSize.width, 1e7))
+        self.text.setMinSize_(NSMakeSize(0.0, logsContentSize.height))
+        self.text.setMaxSize_(NSMakeSize(1e7, 1e7))
         try:
-            self.text.textContainer().setContainerSize_(NSMakeSize(1e7, 1e7))
+            self.text.setAutoresizingMask_(18)
         except Exception:
             pass
-        self.logsScroll.setDocumentView_(self.text)
 
         self.window.makeKeyAndOrderFront_(None)
         NSRunningApplication.currentApplication().activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
@@ -800,7 +817,7 @@ class App:
                 return
             base_attrs = {
                 NSFontAttributeName: NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0),
-                NSForegroundColorAttributeName: NSColor.labelColor(),
+                NSForegroundColorAttributeName: NSColor.whiteColor(),
             }
             mattr = NSMutableAttributedString.alloc().initWithString_attributes_(text, base_attrs)
             total_len = len(text)
@@ -815,8 +832,17 @@ class App:
                 end = starts[min(current_index, len(starts))] if current_index < len(starts) else total_len
                 if end > 0:
                     mattr.addAttribute_value_range_(NSForegroundColorAttributeName, NSColor.tertiaryLabelColor(), NSMakeRange(0, end))
-            # set attributed content
+            # set attributed content and force layout/display
             self.upcoming.textStorage().setAttributedString_(mattr)
+            try:
+                self.upcoming.layoutManager().ensureLayoutForTextContainer_(self.upcoming.textContainer())
+                self.upcoming.setNeedsDisplay_(True)
+            except Exception:
+                pass
+            try:
+                print(f"upcoming_len={total_len} lines={len(lines)}")
+            except Exception:
+                pass
         # ensure UI updates happen on the main thread
         try:
             from PyObjCTools import AppHelper
