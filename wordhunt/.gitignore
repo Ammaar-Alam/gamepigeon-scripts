@@ -28,9 +28,6 @@ dist/
 .pyi-cache/
 .pyi-config/
 
-# Data / model
-letter_dataset/
-
 # IDE/editor
 .idea/
 .vscode/
