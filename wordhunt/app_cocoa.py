@@ -187,13 +187,12 @@ class App:
         self.rootStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
         content.addSubview_(self.rootStack)
 
-        # pin root stack with standard macOS margins (20pt)
-        margin = 20.0
+        # pin root stack with margins (no bottom margin since contentContainer is separate)
         NSLayoutConstraint.activateConstraints_([
-            self.rootStack.leadingAnchor().constraintEqualToAnchor_constant_(content.leadingAnchor(), margin),
-            self.rootStack.trailingAnchor().constraintEqualToAnchor_constant_(content.trailingAnchor(), -margin),
-            self.rootStack.topAnchor().constraintEqualToAnchor_constant_(content.topAnchor(), margin),
-            self.rootStack.bottomAnchor().constraintEqualToAnchor_constant_(content.bottomAnchor(), -margin)
+            self.rootStack.leadingAnchor().constraintEqualToAnchor_constant_(content.leadingAnchor(), 12.0),
+            self.rootStack.trailingAnchor().constraintEqualToAnchor_constant_(content.trailingAnchor(), -20.0),
+            self.rootStack.topAnchor().constraintEqualToAnchor_constant_(content.topAnchor(), 20.0)
+            # no bottom constraint - contentContainer handles that space
         ])
 
         # --- Toolbar section with visual container ---
@@ -305,11 +304,19 @@ class App:
         self.spinner.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.statusStack.addArrangedSubview_(self.spinner)
 
-        # --- Content container (stretches to fill) ---
+        # --- Content container (direct child of window, flush with edges) ---
         self.contentContainer = NSView.alloc().initWithFrame_(NSZeroRect)
         self.contentContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.rootStack.addArrangedSubview_(self.contentContainer)
-        self.contentContainer.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationVertical)
+        # add directly to window content view, NOT to rootStack
+        content.addSubview_(self.contentContainer)
+        
+        # position content container below rootStack (which contains toolbar + tabs) and flush with window edges horizontally
+        NSLayoutConstraint.activateConstraints_([
+            self.contentContainer.leadingAnchor().constraintEqualToAnchor_(content.leadingAnchor()),  # flush left
+            self.contentContainer.trailingAnchor().constraintEqualToAnchor_(content.trailingAnchor()),  # flush right
+            self.contentContainer.topAnchor().constraintEqualToAnchor_constant_(self.rootStack.bottomAnchor(), 8.0),  # small gap below rootStack
+            self.contentContainer.bottomAnchor().constraintEqualToAnchor_constant_(content.bottomAnchor(), -20.0)  # standard bottom margin
+        ])
 
         # dashboard view - use plain container with explicit constraints
         self.dashView = NSView.alloc().initWithFrame_(NSZeroRect)
@@ -317,6 +324,7 @@ class App:
         self.contentContainer.addSubview_(self.dashView)
 
         NSLayoutConstraint.activateConstraints_([
+            # pin main dashboard fully to container so it uses entire width
             self.dashView.leadingAnchor().constraintEqualToAnchor_(self.contentContainer.leadingAnchor()),
             self.dashView.trailingAnchor().constraintEqualToAnchor_(self.contentContainer.trailingAnchor()),
             self.dashView.topAnchor().constraintEqualToAnchor_(self.contentContainer.topAnchor()),
@@ -331,8 +339,9 @@ class App:
         if self.boardView.layer():
             self.boardView.layer().setCornerRadius_(16.0)  # larger radius
             self.boardView.layer().setMasksToBounds_(False)  # allow shadow
-            self.boardView.layer().setBorderWidth_(1.0)  # slightly thicker
-            self.boardView.layer().setBorderColor_(NSColor.colorWithWhite_alpha_(1.0, 0.1).CGColor())
+            # restore a subtle border for definition
+            self.boardView.layer().setBorderWidth_(0.5)
+            self.boardView.layer().setBorderColor_(NSColor.separatorColor().CGColor())
             
             # add shadow for depth
             try:
@@ -344,11 +353,11 @@ class App:
                 pass
         self.dashView.addSubview_(self.boardView)
 
-        # board constraints - square, fixed on left side
+        # board constraints - square, flush left
         NSLayoutConstraint.activateConstraints_([
             self.boardView.widthAnchor().constraintEqualToConstant_(400.0),
             self.boardView.heightAnchor().constraintEqualToConstant_(400.0),
-            self.boardView.leadingAnchor().constraintEqualToAnchor_(self.dashView.leadingAnchor()),
+            self.boardView.leadingAnchor().constraintEqualToAnchor_(self.dashView.leadingAnchor()),  # flush with contentContainer (which is flush with window)
             self.boardView.topAnchor().constraintEqualToAnchor_(self.dashView.topAnchor())
         ])
         # prevent board from growing
@@ -363,15 +372,21 @@ class App:
         self.infoStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.dashView.addSubview_(self.infoStack)
 
-        # position info stack to the right of the board
+        # position info stack to the right of the board with tight spacing
         NSLayoutConstraint.activateConstraints_([
-            self.infoStack.leadingAnchor().constraintEqualToAnchor_constant_(self.boardView.trailingAnchor(), 24.0),
+            self.infoStack.leadingAnchor().constraintEqualToAnchor_constant_(self.boardView.trailingAnchor(), 12.0),  # tighter spacing
             self.infoStack.trailingAnchor().constraintEqualToAnchor_(self.dashView.trailingAnchor()),
-            self.infoStack.topAnchor().constraintEqualToAnchor_(self.dashView.topAnchor()),
+            # align the top of info with the top of the captured board
+            self.infoStack.topAnchor().constraintEqualToAnchor_(self.boardView.topAnchor()),
             self.infoStack.bottomAnchor().constraintLessThanOrEqualToAnchor_(self.dashView.bottomAnchor())
         ])
         # let info stack fill remaining horizontal space
         self.infoStack.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationHorizontal)
+        # keep text from stretching the column width
+        try:
+            self.currentWord.setContentCompressionResistancePriority_forOrientation_(NSLayoutPriorityDefaultLow, NSUserInterfaceLayoutOrientationHorizontal)
+        except Exception:
+            pass
 
         # current word display (prominent)
         self.currentWord = NSTextField.alloc().initWithFrame_(NSZeroRect)
@@ -398,23 +413,28 @@ class App:
         self.totalScore = self._label("Potential: 0 points", 15.0, NSColor.secondaryLabelColor())
         self.statsRow.addArrangedSubview_(self.totalScore)
 
-        # progress bar (sleeker)
+        # progress bar (sleeker) inside a full-width container so width never changes
+        progressContainer = NSView.alloc().initWithFrame_(NSZeroRect)
+        progressContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.infoStack.addArrangedSubview_(progressContainer)
+        NSLayoutConstraint.activateConstraints_([
+            progressContainer.heightAnchor().constraintEqualToConstant_(12.0)
+        ])
         self.wordProgress = NSProgressIndicator.alloc().initWithFrame_(NSZeroRect)
         self.wordProgress.setIndeterminate_(False)
         self.wordProgress.setMinValue_(0.0)
         self.wordProgress.setMaxValue_(1.0)
         self.wordProgress.setDoubleValue_(0.0)
         self.wordProgress.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        
-        # style progress bar with layer
         self.wordProgress.setWantsLayer_(True)
         if self.wordProgress.layer():
             self.wordProgress.layer().setCornerRadius_(3.0)
-        
-        self.infoStack.addArrangedSubview_(self.wordProgress)
-
+        progressContainer.addSubview_(self.wordProgress)
         NSLayoutConstraint.activateConstraints_([
-            self.wordProgress.heightAnchor().constraintEqualToConstant_(8.0)  # slightly taller
+            self.wordProgress.leadingAnchor().constraintEqualToAnchor_(progressContainer.leadingAnchor()),
+            self.wordProgress.trailingAnchor().constraintEqualToAnchor_(progressContainer.trailingAnchor()),
+            self.wordProgress.centerYAnchor().constraintEqualToAnchor_(progressContainer.centerYAnchor()),
+            self.wordProgress.heightAnchor().constraintEqualToConstant_(8.0)
         ])
 
         # separator line
@@ -433,13 +453,34 @@ class App:
         upcomingLabel.setFont_(NSFont.systemFontOfSize_weight_(11.0, 0.3))  # semibold, uppercase
         self.infoStack.addArrangedSubview_(upcomingLabel)
 
-        # scrollable upcoming words list (clean, borderless)
+        # scrollable upcoming words list inside a darker container
+        try:
+            self.upContainer = NSVisualEffectView.alloc().initWithFrame_(NSZeroRect)
+            self.upContainer.setMaterial_(NSVisualEffectMaterialContentBackground)
+            self.upContainer.setBlendingMode_(NSVisualEffectBlendingModeWithinWindow)
+        except Exception:
+            self.upContainer = NSView.alloc().initWithFrame_(NSZeroRect)
+            self.upContainer.setWantsLayer_(True)
+            if self.upContainer.layer():
+                self.upContainer.layer().setBackgroundColor_(NSColor.colorWithWhite_alpha_(0.0, 0.18).CGColor())
+        self.upContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.infoStack.addArrangedSubview_(self.upContainer)
+        NSLayoutConstraint.activateConstraints_([
+            self.upContainer.heightAnchor().constraintGreaterThanOrEqualToConstant_(240.0)
+        ])
+
         self.upScroll = NSScrollView.alloc().initWithFrame_(NSZeroRect)
         self.upScroll.setHasVerticalScroller_(True)
         self.upScroll.setDrawsBackground_(False)
         self.upScroll.setBorderType_(0)  # no border
         self.upScroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.infoStack.addArrangedSubview_(self.upScroll)
+        self.upContainer.addSubview_(self.upScroll)
+        NSLayoutConstraint.activateConstraints_([
+            self.upScroll.leadingAnchor().constraintEqualToAnchor_constant_(self.upContainer.leadingAnchor(), 8.0),
+            self.upScroll.trailingAnchor().constraintEqualToAnchor_constant_(self.upContainer.trailingAnchor(), -8.0),
+            self.upScroll.topAnchor().constraintEqualToAnchor_constant_(self.upContainer.topAnchor(), 8.0),
+            self.upScroll.bottomAnchor().constraintEqualToAnchor_constant_(self.upContainer.bottomAnchor(), -8.0)
+        ])
 
         # make scroll view stretch to fill remaining space
         self.upScroll.setContentHuggingPriority_forOrientation_(NSLayoutPriorityDefaultLow - 1, NSUserInterfaceLayoutOrientationVertical)
@@ -447,8 +488,13 @@ class App:
         self.upcoming = NSTextView.alloc().initWithFrame_(NSZeroRect)
         self.upcoming.setEditable_(False)
         self.upcoming.setFont_(NSFont.monospacedSystemFontOfSize_weight_(13.0, 0.0))
-        self.upcoming.setTextColor_(NSColor.secondaryLabelColor())
+        # use label color for readability on vibrancy
+        self.upcoming.setTextColor_(NSColor.labelColor())
         self.upcoming.setBackgroundColor_(NSColor.clearColor())
+        try:
+            self.upcoming.setRichText_(False)  # ensure plain text so colors apply predictably
+        except Exception:
+            pass
         self.upcoming.setTextContainerInset_(NSMakeSize(8.0, 8.0))
         self.upcoming.setMinSize_(NSMakeSize(0.0, 0.0))
         self.upcoming.setMaxSize_(NSMakeSize(1e7, 1e7))
@@ -497,6 +543,7 @@ class App:
         self.solver = None
         self.worker = None
         self.isRunning = False
+        self.all_words = []
 
         # main-thread dispatcher
         def run_on_main(func, *args, **kwargs):
@@ -552,6 +599,34 @@ class App:
             self.app.setMainMenu_(menubar)
         except Exception as e:
             print(f"Menu setup error: {e}")
+
+    def _show_calibration_alert(self) -> bool:
+        """present calibration instructions; return True if user proceeds"""
+        try:
+            from AppKit import NSAlert, NSAlertStyleInformational
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Calibration")
+            alert.setInformativeText_((
+                "Calibration requires two points:\n"
+                "1) Hover over the CENTER of the TOP‑LEFT tile, then wait for the 3‑second countdown.\n"
+                "2) Next, hover over the CENTER of the BOTTOM‑RIGHT tile, then wait for the countdown again.\n\n"
+                "Tips:\n"
+                "• Make sure the full 4×4 board is visible on iPhone Mirroring.\n"
+                "• Keep the mouse steady while the countdown runs."
+            ))
+            try:
+                alert.setAlertStyle_(NSAlertStyleInformational)
+            except Exception:
+                pass
+            alert.addButtonWithTitle_("Start Calibration")
+            alert.addButtonWithTitle_("Cancel")
+            resp = alert.runModal()
+            # NSAlertFirstButtonReturn is 1000 typically; treat > 0 as proceed if first button
+            return bool(resp == 1000)
+        except Exception:
+            # if alert fails, proceed in console mode
+            print("Calibration instructions: open iPhone Mirroring -> WordHunt board -> keep inputs idle during capture.")
+            return True
 
     def _button(self, title: str, selector_name: str, isPrimary: bool = False):
         """create a properly styled button"""
@@ -629,6 +704,51 @@ class App:
         except Exception as e:
             # silently fail if SF Symbols not available
             pass
+
+    def _render_upcoming_list(self, current_index: int):
+        """render upcoming words with completed ones grayed out and current highlighted"""
+        try:
+            from AppKit import NSColor
+        except Exception:
+            NSColor = None
+        if not isinstance(self.all_words, list):
+            self.all_words = []
+        # show up to 200 for performance
+        words = self.all_words[:200]
+        lines = [f"{idx+1:>3}. {w}" for idx, w in enumerate(words)]
+        text = "\n".join(lines)
+        self.upcoming.setString_(text)
+        if not NSColor:
+            return
+        total_len = len(text)
+        if total_len == 0:
+            return
+        # default to secondary color
+        try:
+            self.upcoming.setTextColor_range_(NSColor.secondaryLabelColor(), NSMakeRange(0, total_len))
+        except Exception:
+            return
+        # compute line starts
+        starts = []
+        pos = 0
+        for line in lines:
+            starts.append(pos)
+            pos += len(line) + 1  # +1 for newline
+        # completed range
+        if current_index > 0 and len(starts) > 0:
+            end = starts[min(current_index, len(starts))] if current_index < len(starts) else total_len
+            try:
+                self.upcoming.setTextColor_range_(NSColor.tertiaryLabelColor(), NSMakeRange(0, max(0, end)))
+            except Exception:
+                pass
+        # current line highlight
+        if 0 <= current_index < len(starts):
+            start = starts[current_index]
+            end = len(lines[current_index])
+            try:
+                self.upcoming.setTextColor_range_(NSColor.labelColor(), NSMakeRange(start, end))
+            except Exception:
+                pass
 
     def onSegment_(self, sender):
         """switch between dashboard and logs"""
@@ -719,6 +839,9 @@ Keyboard Shortcuts:
                 print(f"❌ Calibration error: {e}")
         if self.worker and self.worker.is_alive():
             print("⚠️  Already running...")
+            return
+        # show guided instructions as an alert/sheet
+        if not self._show_calibration_alert():
             return
         self.worker = threading.Thread(target=_do_cal, daemon=True)
         self.worker.start()
@@ -811,17 +934,14 @@ Keyboard Shortcuts:
                 print(f"Error updating board: {e}")
         
         elif event == 'words_list' and 'words' in payload:
-            words = payload['words']
-            lines = []
-            for idx, w in enumerate(words[:200], 1):
-                lines.append(f"{idx:>3}. {w.upper()}")
-            self.upcoming.setString_("\n".join(lines))
-            
+            # save and render full list
+            self.all_words = [w.upper() for w in payload['words']]
+            self._render_upcoming_list(0)
             self.wordProgress.setMinValue_(0)
-            self.wordProgress.setMaxValue_(max(1, len(words)))
+            self.wordProgress.setMaxValue_(max(1, len(self.all_words)))
             self.wordProgress.setDoubleValue_(0)
-            word_label = "word" if len(words) == 1 else "words"
-            self.wordCounter.setStringValue_(f"0 / {len(words)} {word_label}")
+            word_label = "word" if len(self.all_words) == 1 else "words"
+            self.wordCounter.setStringValue_(f"0 / {len(self.all_words)} {word_label}")
             self.currentWord.setStringValue_("—")
         
         elif event == 'potential_score':
@@ -837,6 +957,11 @@ Keyboard Shortcuts:
             self.wordProgress.setDoubleValue_(idx)
             word_label = "word" if total == 1 else "words"
             self.wordCounter.setStringValue_(f"{idx} / {total} {word_label}")
+            # gray out completed words
+            try:
+                self._render_upcoming_list(idx)
+            except Exception:
+                pass
 
     def _nsimage_from_np(self, img_np):
         """convert numpy array to NSImage"""
