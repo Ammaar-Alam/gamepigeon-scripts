@@ -1,0 +1,12 @@
+mss>=9.0.1
+# Pin to prebuilt wheel to avoid sdist builds on macOS arm64 / Python 3.14
+numpy==2.3.4
+# 4.11/4.12 pin numpy<2.3; use 4.10 with numpy 2.3.x wheels on macOS arm64
+opencv-python==4.10.0.84
+pyautogui>=0.9.54
+Pillow>=10.0
+keyboard>=0.13.5
+pyobjc-framework-Quartz>=10.0
+torch>=2.1
+torchvision>=0.16
+tqdm>=4.66

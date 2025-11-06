@@ -1,0 +1,37 @@
+name: macOS App Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps and build app
+        run: |
+          python -m pip install --upgrade pip
+          brew install tcl-tk
+          pip install -r requirements.txt pyinstaller
+          TCLTK_PREFIX=$(brew --prefix tcl-tk)
+          TCL_LIBRARY=$(ls -d "$TCLTK_PREFIX"/lib/tcl9.0 "$TCLTK_PREFIX"/lib/tcl8.6 2>/dev/null | head -n1)
+          TK_LIBRARY=$(ls -d "$TCLTK_PREFIX"/lib/tk9.0  "$TCLTK_PREFIX"/lib/tk8.6  2>/dev/null | head -n1)
+          TCL_DYLIB=$(ls "$TCLTK_PREFIX"/lib/libtcl*.dylib | head -n1)
+          TK_DYLIB=$(ls "$TCLTK_PREFIX"/lib/libtk*.dylib  | head -n1)
+          pyinstaller --windowed --name "WordHuntSolver" \
+            --hidden-import tkinter \
+            --add-binary "$TCL_DYLIB:." \
+            --add-binary "$TK_DYLIB:." \
+            --add-data "$TCL_LIBRARY:lib/$(basename "$TCL_LIBRARY")" \
+            --add-data "$TK_LIBRARY:lib/$(basename "$TK_LIBRARY")" \
+            --add-data "letter_recognition_model.pth:." \
+            --add-data "dictionary.txt:." \
+            gui.py
+          ditto -c -k --sequesterRsrc --keepParent "dist/WordHuntSolver.app" "WordHuntSolver-macOS.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WordHuntSolver-macOS
+          path: WordHuntSolver-macOS.zip

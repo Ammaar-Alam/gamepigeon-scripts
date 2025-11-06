@@ -1,0 +1,43 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.log
+
+# Virtualenvs
+.venv/
+.venv-py311/
+.venv-py314/
+venv/
+
+# Build artifacts
+build/
+dist/
+# PyInstaller/py2app specs (keep spec files under version control)
+# Remove this ignore to keep WordHuntSolver.spec tracked
+# *.spec
+
+# Local config
+# local user config directory (do not ignore literal home expansion)
+# users may have calibration and word lists here, but not part of repo
+.pyi-cache/
+.pyi-config/
+
+# Data / model
+letter_dataset/
+
+# IDE/editor
+.idea/
+.vscode/
+*.iml
+
+# Test & tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
